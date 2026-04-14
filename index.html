@@ -694,6 +694,22 @@
       word-break: break-word;
     }
 
+    .comment-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 10px;
+    }
+
+    .comment-delete-btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: #fee2e2;
+      color: #991b1b;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
     .comment-form {
       display: grid;
       gap: 14px;
@@ -1496,7 +1512,6 @@
 
     let expandedChartType = null;
     let expandedChartTitle = '';
-    let isCloudSyncing = false;
 
     document.getElementById('addRowBtn').addEventListener('click', () => addAuditRow());
     document.getElementById('saveAuditsBtn').addEventListener('click', saveAuditRows);
@@ -1585,8 +1600,22 @@
       return response.json();
     }
 
+    let isCloudSyncing = false;
+    let isHydratingFromCloud = false;
+
+    function persistLocalOnly() {
+      localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(audits));
+      localStorage.setItem(COMM_STORAGE_KEY, JSON.stringify(communicationEntries));
+      localStorage.setItem(GEMBA_STORAGE_KEY, JSON.stringify(gembaEntries));
+      const plannerPayload = {
+        departments: getPlannerDepartments(),
+        schedule: currentSchedule
+      };
+      localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(plannerPayload));
+    }
+
     async function pushCloudData() {
-      if (isCloudSyncing) return;
+      if (isHydratingFromCloud || isCloudSyncing) return;
       isCloudSyncing = true;
       setCloudStatus('saving...', '#f59e0b');
       try {
@@ -1594,13 +1623,17 @@
           action: 'replaceAll',
           audits,
           communication: communicationEntries,
-          gemba: gembaEntries
+          gemba: gembaEntries,
+          planner: {
+            departments: getPlannerDepartments(),
+            schedule: currentSchedule || emptySchedule()
+          }
         });
         if (!result.ok) throw new Error(result.error || 'Unknown cloud save error');
         setCloudStatus('saved', '#86efac');
       } catch (err) {
         console.error(err);
-        setCloudStatus('save failed', '#fca5a5');
+        setCloudStatus('offline/local only', '#fca5a5');
       } finally {
         isCloudSyncing = false;
       }
@@ -1612,6 +1645,8 @@
         const result = await cloudGet('loadAll');
         if (!result.ok) throw new Error(result.error || 'Unknown cloud load error');
 
+        isHydratingFromCloud = true;
+
         if (Array.isArray(result.audits)) {
           audits = result.audits.map(item => ({
             id: item.id || createId(),
@@ -1620,7 +1655,6 @@
             date: item.date || '',
             notes: item.notes || ''
           }));
-          saveAudits();
         }
 
         if (Array.isArray(result.communication)) {
@@ -1630,7 +1664,6 @@
             text: item.text || '',
             createdAt: item.createdAt || new Date().toISOString()
           }));
-          saveCommunicationEntries();
         }
 
         if (Array.isArray(result.gemba)) {
@@ -1642,13 +1675,32 @@
             createdAt: item.createdAt || new Date().toISOString(),
             tasks: Array.isArray(item.tasks) ? item.tasks : []
           }));
-          saveGembaEntries();
         }
 
+        if (result.planner && typeof result.planner === 'object') {
+          const plannerDepartments = Array.isArray(result.planner.departments) && result.planner.departments.length
+            ? result.planner.departments
+            : plannerDefaultDepartments;
+          renderDeptInputs(plannerDepartments);
+
+          if (result.planner.schedule && typeof result.planner.schedule === 'object') {
+            currentSchedule = result.planner.schedule;
+            plannerAllDays.forEach(day => {
+              if (!Array.isArray(currentSchedule[day.name])) currentSchedule[day.name] = [];
+            });
+          } else {
+            currentSchedule = emptySchedule();
+          }
+          renderSchedule(currentSchedule);
+        }
+
+        persistLocalOnly();
         setCloudStatus('connected', '#86efac');
       } catch (err) {
         console.error(err);
         setCloudStatus('offline/local only', '#fca5a5');
+      } finally {
+        isHydratingFromCloud = false;
       }
     }
 
@@ -2275,6 +2327,7 @@
           schedule: currentSchedule
         };
         localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(data));
+        pushCloudData();
         if (message) plannerStatus.innerHTML = message;
       } catch (err) {
         plannerStatus.innerHTML = 'Save failed. Your browser may be blocking local storage for this file.';
@@ -2796,6 +2849,21 @@
       commYearFilter.value = [...yearSet].map(String).includes(currentYear) ? currentYear : 'all';
     }
 
+    function deleteComment(id) {
+      const password = prompt('Enter password to delete this comment:');
+      if (password === null) return;
+      if (password !== 'delete') {
+        alert('Wrong password. Comment was not deleted.');
+        return;
+      }
+      if (!confirm('Password accepted. Delete this comment?')) return;
+
+      communicationEntries = communicationEntries.filter(entry => entry.id !== id);
+      saveCommunicationEntries();
+      populateCommunicationFilters();
+      renderCommunicationEntries();
+    }
+
     function renderCommunicationEntries() {
       const dayVal = commDayFilter.value;
       const weekVal = commWeekFilter.value;
@@ -2829,9 +2897,16 @@
               <div class="comment-meta">${dateLabel} • ${timeLabel}</div>
             </div>
             <div class="comment-text">${escapeHtml(entry.text)}</div>
+            <div class="comment-actions">
+              <button class="comment-delete-btn" type="button" data-comment-id="${entry.id}">Delete</button>
+            </div>
           </div>
         `;
       }).join('');
+
+      communicationList.querySelectorAll('.comment-delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteComment(btn.dataset.commentId));
+      });
     }
 
 
