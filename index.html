@@ -880,29 +880,6 @@
       line-height: 1.45;
     }
 
-    .chart-filter-panel {
-      display: grid;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .chart-filter-row {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: end;
-    }
-
-    .multi-select {
-      min-height: 120px;
-      padding: 8px;
-    }
-
-    .filter-hint {
-      font-size: 0.9rem;
-      color: var(--slate-500);
-    }
-
     .chart-card-head {
       display: flex;
       justify-content: space-between;
@@ -1023,6 +1000,7 @@
           <p class="brand-sub">Scores, trends, weekly gameplan, and fewer spreadsheet knife fights.</p>
         </div>
       </div>
+      <div id="cloudStatus" style="font-size:12px;color:#cbd5e1;font-weight:700;">Cloud: connecting...</div>
       <nav class="nav">
         <button class="nav-btn active" data-page="dashboard">Dashboard</button>
         <button class="nav-btn" data-page="gemba">Gemba</button>
@@ -1328,31 +1306,12 @@
         <div class="hero">
           <div>
             <h2>Charts</h2>
-            <p>Trend lines over time and department averages with date range and multi-department filtering.</p>
+            <p>Trend lines over time and department averages. Toggle departments on and off without wrestling a spreadsheet to the floor.</p>
           </div>
         </div>
-        <div class="card chart-filter-panel">
-          <h3 style="margin-bottom:0;">Chart Filters</h3>
-          <div class="chart-filter-row">
-            <div class="field" style="min-width:180px;">
-              <label for="chartDateFrom">Date From</label>
-              <input id="chartDateFrom" type="date" />
-            </div>
-            <div class="field" style="min-width:180px;">
-              <label for="chartDateTo">Date To</label>
-              <input id="chartDateTo" type="date" />
-            </div>
-            <div class="field" style="min-width:290px; flex:1 1 320px;">
-              <label for="chartDepartmentSelect">Departments (select one or multiple)</label>
-              <select id="chartDepartmentSelect" class="multi-select" multiple></select>
-            </div>
-          </div>
-          <div class="chart-filter-row">
-            <button class="btn btn-secondary" id="chartSelectAllBtn" type="button">Select All Departments</button>
-            <button class="btn btn-secondary" id="chartClearDeptBtn" type="button">Clear Departments</button>
-            <button class="btn btn-secondary" id="chartResetFiltersBtn" type="button">Reset Chart Filters</button>
-          </div>
-          <div class="filter-hint">Tip: Hold Ctrl on Windows or Command on Mac to pick multiple departments.</div>
+        <div class="card" style="margin-bottom:18px;">
+          <h3 style="margin-bottom:12px;">Department Filters</h3>
+          <div id="chartChips" class="chip-wrap"></div>
         </div>
         <div class="grid dashboard-main">
           <div class="card">
@@ -1451,6 +1410,7 @@
     const PLANNER_STORAGE_KEY = 'audit_picker_saved_v3_combined';
     const COMM_STORAGE_KEY = 'departmentAuditCommunication_v2';
     const GEMBA_STORAGE_KEY = 'departmentAuditGemba_v1';
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzNtnaVikpggdoRaKNOyia-0UtvZ6GMOIp2oHnlzWqHVDj_lDEcJFm-ZpteutarVEKxMg/exec';
 
     const departments = [
       'SOLLiD Assembly',
@@ -1500,8 +1460,6 @@
 
     let audits = loadAudits();
     let visibleDepartments = new Set(departments);
-    let chartDateFromValue = '';
-    let chartDateToValue = '';
     let currentSchedule = null;
     let draggedItem = null;
     let communicationEntries = loadCommunicationEntries();
@@ -1529,20 +1487,16 @@
     const gembaStatusFilter = document.getElementById('gembaStatusFilter');
     const gembaSearch = document.getElementById('gembaSearch');
     const gembaList = document.getElementById('gembaList');
-    const chartDateFrom = document.getElementById('chartDateFrom');
-    const chartDateTo = document.getElementById('chartDateTo');
-    const chartDepartmentSelect = document.getElementById('chartDepartmentSelect');
-    const chartSelectAllBtn = document.getElementById('chartSelectAllBtn');
-    const chartClearDeptBtn = document.getElementById('chartClearDeptBtn');
-    const chartResetFiltersBtn = document.getElementById('chartResetFiltersBtn');
     const chartModal = document.getElementById('chartModal');
     const chartModalTitle = document.getElementById('chartModalTitle');
     const modalDownloadBtn = document.getElementById('modalDownloadBtn');
     const closeChartModalBtn = document.getElementById('closeChartModalBtn');
     const chartModalCanvas = document.getElementById('chartModalCanvas');
+    const cloudStatus = document.getElementById('cloudStatus');
 
     let expandedChartType = null;
     let expandedChartTitle = '';
+    let isCloudSyncing = false;
 
     document.getElementById('addRowBtn').addEventListener('click', () => addAuditRow());
     document.getElementById('saveAuditsBtn').addEventListener('click', saveAuditRows);
@@ -1593,12 +1547,6 @@
     commYearFilter.addEventListener('change', renderCommunicationEntries);
     gembaStatusFilter.addEventListener('change', renderGembaEntries);
     gembaSearch.addEventListener('input', renderGembaEntries);
-    chartDateFrom.addEventListener('change', handleChartFilterChange);
-    chartDateTo.addEventListener('change', handleChartFilterChange);
-    chartDepartmentSelect.addEventListener('change', handleChartDepartmentChange);
-    chartSelectAllBtn.addEventListener('click', selectAllChartDepartments);
-    chartClearDeptBtn.addEventListener('click', clearChartDepartments);
-    chartResetFiltersBtn.addEventListener('click', resetChartFilters);
     window.addEventListener('resize', renderAll);
 
     navButtons.forEach(btn => {
@@ -1610,6 +1558,99 @@
       btn.addEventListener('click', () => downloadCanvasAsPng(document.getElementById(btn.dataset.canvas), btn.dataset.filename));
     });
 
+
+
+
+    function setCloudStatus(message, color = '#cbd5e1') {
+      if (cloudStatus) {
+        cloudStatus.textContent = `Cloud: ${message}`;
+        cloudStatus.style.color = color;
+      }
+    }
+
+    async function cloudGet(action) {
+      const response = await fetch(`${GOOGLE_SCRIPT_URL}?action=${encodeURIComponent(action)}`);
+      if (!response.ok) throw new Error(`GET failed: ${response.status}`);
+      return response.json();
+    }
+
+    async function cloudPost(payload) {
+      const response = await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload),
+        redirect: 'follow'
+      });
+      if (!response.ok) throw new Error(`POST failed: ${response.status}`);
+      return response.json();
+    }
+
+    async function pushCloudData() {
+      if (isCloudSyncing) return;
+      isCloudSyncing = true;
+      setCloudStatus('saving...', '#f59e0b');
+      try {
+        const result = await cloudPost({
+          action: 'replaceAll',
+          audits,
+          communication: communicationEntries,
+          gemba: gembaEntries
+        });
+        if (!result.ok) throw new Error(result.error || 'Unknown cloud save error');
+        setCloudStatus('saved', '#86efac');
+      } catch (err) {
+        console.error(err);
+        setCloudStatus('save failed', '#fca5a5');
+      } finally {
+        isCloudSyncing = false;
+      }
+    }
+
+    async function loadCloudData() {
+      setCloudStatus('loading...', '#f59e0b');
+      try {
+        const result = await cloudGet('loadAll');
+        if (!result.ok) throw new Error(result.error || 'Unknown cloud load error');
+
+        if (Array.isArray(result.audits)) {
+          audits = result.audits.map(item => ({
+            id: item.id || createId(),
+            department: item.department || '',
+            score: Number(item.score || 0),
+            date: item.date || '',
+            notes: item.notes || ''
+          }));
+          saveAudits();
+        }
+
+        if (Array.isArray(result.communication)) {
+          communicationEntries = result.communication.map(item => ({
+            id: item.id || createId(),
+            user: item.user || '',
+            text: item.text || '',
+            createdAt: item.createdAt || new Date().toISOString()
+          }));
+          saveCommunicationEntries();
+        }
+
+        if (Array.isArray(result.gemba)) {
+          gembaEntries = result.gemba.map(item => ({
+            id: item.id || createId(),
+            title: item.title || '',
+            status: item.status || 'Idea',
+            text: item.text || '',
+            createdAt: item.createdAt || new Date().toISOString(),
+            tasks: Array.isArray(item.tasks) ? item.tasks : []
+          }));
+          saveGembaEntries();
+        }
+
+        setCloudStatus('connected', '#86efac');
+      } catch (err) {
+        console.error(err);
+        setCloudStatus('offline/local only', '#fca5a5');
+      }
+    }
 
 
     function switchPage(pageId) {
@@ -1631,6 +1672,7 @@
 
     function saveAudits() {
       localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(audits));
+      pushCloudData();
     }
 
     function createId() {
@@ -1961,86 +2003,36 @@
       renderAll();
     }
 
-    function populateChartDepartmentSelect() {
-      const currentSelected = new Set(visibleDepartments);
-      chartDepartmentSelect.innerHTML = departments.map(department =>
-        `<option value="${department}" ${currentSelected.has(department) ? 'selected' : ''}>${department}</option>`
-      ).join('');
-    }
-
-    function handleChartDepartmentChange() {
-      const selected = [...chartDepartmentSelect.selectedOptions].map(option => option.value);
-      visibleDepartments = new Set(selected);
-      renderCharts();
-    }
-
-    function handleChartFilterChange() {
-      chartDateFromValue = chartDateFrom.value;
-      chartDateToValue = chartDateTo.value;
-      renderCharts();
-    }
-
-    function selectAllChartDepartments() {
-      visibleDepartments = new Set(departments);
-      populateChartDepartmentSelect();
-      renderCharts();
-    }
-
-    function clearChartDepartments() {
-      visibleDepartments = new Set();
-      populateChartDepartmentSelect();
-      renderCharts();
-    }
-
-    function resetChartFilters() {
-      visibleDepartments = new Set(departments);
-      chartDateFromValue = '';
-      chartDateToValue = '';
-      chartDateFrom.value = '';
-      chartDateTo.value = '';
-      populateChartDepartmentSelect();
-      renderCharts();
-    }
-
-    function getFilteredChartAudits() {
-      return audits.filter(audit => {
-        const deptMatch = visibleDepartments.has(audit.department);
-        const afterStart = !chartDateFromValue || audit.date >= chartDateFromValue;
-        const beforeEnd = !chartDateToValue || audit.date <= chartDateToValue;
-        return deptMatch && afterStart && beforeEnd;
-      });
-    }
-
-    function getFilteredChartStats() {
-      const filteredAudits = getFilteredChartAudits();
-      const grouped = new Map();
-      departments.forEach(dept => grouped.set(dept, []));
-      filteredAudits.forEach(audit => {
-        if (!grouped.has(audit.department)) grouped.set(audit.department, []);
-        grouped.get(audit.department).push(audit);
-      });
-
-      return departments
-        .filter(department => visibleDepartments.has(department))
-        .map(department => {
-          const deptAudits = sortByDateAsc(grouped.get(department) || []);
-          const scores = deptAudits.map(a => Number(a.score));
-          return {
-            department,
-            avg: average(scores),
-            count: scores.length,
-            audits: deptAudits
-          };
-        });
-    }
-
     function renderChartFilters() {
-      populateChartDepartmentSelect();
+      const wrap = document.getElementById('chartChips');
+      wrap.innerHTML = '';
+
+      const allChip = document.createElement('button');
+      allChip.className = 'chip';
+      allChip.textContent = visibleDepartments.size === departments.length ? 'Hide All' : 'Show All';
+      allChip.addEventListener('click', () => {
+        visibleDepartments = visibleDepartments.size === departments.length ? new Set() : new Set(departments);
+        renderCharts();
+      });
+      wrap.appendChild(allChip);
+
+      departments.forEach(department => {
+        const chip = document.createElement('button');
+        chip.className = `chip ${visibleDepartments.has(department) ? 'active' : ''}`;
+        chip.textContent = department;
+        chip.addEventListener('click', () => {
+          if (visibleDepartments.has(department)) visibleDepartments.delete(department);
+          else visibleDepartments.add(department);
+          renderCharts();
+        });
+        wrap.appendChild(chip);
+      });
     }
 
     function renderCharts() {
       renderChartFilters();
-      const filteredStats = getFilteredChartStats().filter(s => s.count > 0);
+      const stats = getDepartmentStats();
+      const filteredStats = stats.filter(s => visibleDepartments.has(s.department) && s.count > 0);
       drawBarChart('chartsBarChart', filteredStats.sort((a, b) => b.avg - a.avg), { valueKey: 'avg' });
       drawLineChart('trendLineChart', filteredStats);
     }
@@ -2725,6 +2717,7 @@
 
     function saveCommunicationEntries() {
       localStorage.setItem(COMM_STORAGE_KEY, JSON.stringify(communicationEntries));
+      pushCloudData();
     }
 
     function addCommunicationEntry() {
@@ -3161,6 +3154,7 @@
 
     function saveGembaEntries() {
       localStorage.setItem(GEMBA_STORAGE_KEY, JSON.stringify(gembaEntries));
+      pushCloudData();
     }
 
     function addGembaEntry() {
@@ -3381,7 +3375,10 @@
       renderSchedule(currentSchedule);
     }
 
-    renderAll();
+    (async function bootstrapApp() {
+      await loadCloudData();
+      renderAll();
+    })();
   </script>
 
   <div class="modal-backdrop" id="chartModal">
