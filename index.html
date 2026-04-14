@@ -1,0 +1,3403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Department Audit Tracker + Weekly Gameplan</title>
+  <style>
+    :root {
+      --navy-950: #0f172a;
+      --navy-900: #111827;
+      --navy-800: #1f2937;
+      --slate-700: #334155;
+      --slate-600: #475569;
+      --slate-500: #64748b;
+      --slate-400: #94a3b8;
+      --slate-300: #cbd5e1;
+      --slate-200: #e2e8f0;
+      --white: #ffffff;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --blue: #38bdf8;
+      --indigo: #6366f1;
+      --shadow: 0 10px 30px rgba(2, 6, 23, 0.16);
+      --radius: 18px;
+      --planner-accent: #22c55e;
+      --planner-drop: rgba(34,197,94,.15);
+      --planner-drop-border: rgba(74,222,128,.65);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+      color: var(--navy-950);
+    }
+
+    .app-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 20px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(12px);
+      color: white;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+    }
+
+    .brand-wrap {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--blue), var(--indigo));
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      box-shadow: 0 10px 24px rgba(56, 189, 248, 0.28);
+    }
+
+    .brand-title { margin: 0; font-size: 1.08rem; }
+    .brand-sub { margin: 2px 0 0; font-size: 0.85rem; color: #cbd5e1; }
+
+    .nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .nav-btn {
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(255, 255, 255, 0.08);
+      color: white;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .nav-btn:hover, .nav-btn.active {
+      background: white;
+      color: var(--navy-950);
+      transform: translateY(-1px);
+    }
+
+    .page {
+      display: none;
+      padding: 24px;
+      max-width: 1560px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .page.active { display: block; }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .hero h2 {
+      margin: 0 0 8px;
+      font-size: clamp(1.5rem, 2vw, 2.2rem);
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--slate-600);
+      max-width: 760px;
+    }
+
+    .button-row, .gameplan-controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    .mini-btn {
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0ea5e9, #4f46e5);
+      color: white;
+      box-shadow: 0 10px 20px rgba(79, 70, 229, 0.24);
+    }
+
+    .btn-secondary {
+      background: var(--slate-200);
+      color: var(--navy-950);
+    }
+
+    .btn-danger {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .planner-primary {
+      background: var(--planner-accent);
+      color: #052e16;
+    }
+
+    .planner-secondary {
+      background: var(--slate-700);
+      color: white;
+    }
+
+    .planner-danger {
+      background: #7f1d1d;
+      color: #fecaca;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+
+    .grid { display: grid; gap: 18px; }
+
+    .card {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    .stats-grid {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::after {
+      content: "";
+      position: absolute;
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: rgba(99, 102, 241, 0.08);
+      top: -20px;
+      right: -20px;
+    }
+
+    .label {
+      color: var(--slate-500);
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .value {
+      margin-top: 10px;
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      font-weight: 800;
+    }
+
+    .subtle {
+      margin-top: 6px;
+      color: var(--slate-500);
+      font-size: 0.95rem;
+    }
+
+    .dashboard-main {
+      grid-template-columns: 1fr 1fr;
+      align-items: start;
+      margin-top: 20px;
+    }
+
+    .rank-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .card h3 { margin: 0 0 14px; font-size: 1.08rem; }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #f8fafc;
+      border: 1px solid var(--slate-200);
+    }
+
+    .item-left { min-width: 0; }
+    .dept-name {
+      font-weight: 800;
+      color: #0f172a;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .item-meta {
+      color: var(--slate-500);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .score-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      color: white;
+      font-weight: 800;
+      font-size: 0.95rem;
+      min-width: 84px;
+      justify-content: center;
+    }
+
+    .glow-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 14px currentColor;
+    }
+
+    .chart-box {
+      position: relative;
+      width: 100%;
+      min-height: 360px;
+      height: 360px;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 16px;
+      background: #0f172a;
+      border: 1px dashed var(--slate-700);
+      color: #cbd5e1;
+      font-size: 0.92rem;
+    }
+
+    .form-wrap { display: grid; gap: 16px; }
+
+    .audit-row {
+      display: grid;
+      grid-template-columns: 1.5fr 0.8fr 1fr 1.5fr auto;
+      gap: 12px;
+      align-items: end;
+      padding: 14px;
+      border: 1px solid #dbeafe;
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
+      border-radius: 16px;
+    }
+
+    .field { display: grid; gap: 8px; }
+
+    .field label {
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: var(--slate-700);
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--slate-300);
+      background: white;
+      color: var(--navy-950);
+      font: inherit;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid var(--slate-200);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+      background: white;
+    }
+
+    th, td {
+      padding: 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--slate-200);
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8fafc;
+      color: var(--slate-700);
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    tr:hover td { background: #fcfdff; }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .chip-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip {
+      padding: 9px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--slate-300);
+      background: white;
+      color: var(--slate-700);
+      cursor: pointer;
+      font-weight: 700;
+      transition: 0.18s ease;
+      user-select: none;
+    }
+
+    .chip.active {
+      background: var(--navy-950);
+      border-color: var(--navy-950);
+      color: white;
+    }
+
+    .empty-state {
+      color: var(--slate-500);
+      text-align: center;
+      padding: 36px 18px;
+      border: 2px dashed var(--slate-300);
+      border-radius: 16px;
+      background: #f8fafc;
+    }
+
+    .gameplan-shell {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .gameplan-left {
+      background: rgba(17, 24, 39, 0.96);
+      border: 1px solid var(--slate-700);
+      color: #e5e7eb;
+    }
+
+    .gameplan-right {
+      background: rgba(17, 24, 39, 0.96);
+      border: 1px solid var(--slate-700);
+      color: #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .planner-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 8px 12px;
+      background: rgba(34,197,94,.12);
+      color: #86efac;
+      border: 1px solid rgba(34,197,94,.2);
+    }
+
+    .summary-boxes {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+      margin-bottom: 16px;
+    }
+
+    .summary-box {
+      background: #0b1220;
+      border: 1px solid var(--slate-700);
+      border-radius: 16px;
+      padding: 14px;
+      color: white;
+    }
+
+    .summary-box .label {
+      font-size: 12px;
+      color: var(--slate-400);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .summary-box .value {
+      font-size: 26px;
+      font-weight: 800;
+      margin-top: 0;
+    }
+
+    .tiny {
+      font-size: 12px;
+      color: var(--slate-400);
+      line-height: 1.5;
+    }
+
+    .dept-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .dept-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .planner-input {
+      border: 1px solid var(--slate-700);
+      background: #0b1220;
+      color: #e5e7eb;
+    }
+
+    .planner-input:focus {
+      border-color: var(--planner-accent);
+      box-shadow: 0 0 0 3px rgba(34,197,94,.15);
+    }
+
+    .status-box {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(2,6,23,.6);
+      border: 1px dashed var(--slate-700);
+      color: var(--slate-300);
+      line-height: 1.45;
+    }
+
+    .gameplan-topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .schedule-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
+    }
+
+    .day-card {
+      background: linear-gradient(180deg, rgba(31,41,55,.95), rgba(15,23,42,.95));
+      border: 1px solid var(--slate-700);
+      border-radius: 20px;
+      padding: 16px;
+      min-height: 340px;
+    }
+
+    .day-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 8px;
+    }
+
+    .count-pill {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: #0b1220;
+      border: 1px solid var(--slate-700);
+      color: var(--slate-400);
+      white-space: nowrap;
+    }
+
+    .audit-list {
+      list-style: none;
+      margin: 0;
+      padding: 10px;
+      display: grid;
+      gap: 10px;
+      min-height: 230px;
+      border-radius: 14px;
+      border: 1px dashed transparent;
+      transition: .18s ease;
+    }
+
+    .audit-list.drop-target {
+      background: var(--planner-drop);
+      border-color: var(--planner-drop-border);
+    }
+
+    .audit-item {
+      background: rgba(15, 23, 42, .95);
+      border: 1px solid #243244;
+      border-radius: 14px;
+      padding: 10px 10px 10px 12px;
+      font-weight: 700;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: #f8fafc;
+    }
+
+    .drag-handle {
+      flex: 1;
+      cursor: grab;
+    }
+
+    .dragging {
+      opacity: .45;
+    }
+
+    .remove-btn {
+      background: #7f1d1d;
+      color: #fecaca;
+      border: 0;
+      border-radius: 8px;
+      padding: 4px 8px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .empty-slot {
+      color: #94a3b8;
+      font-weight: 600;
+      border: 1px dashed #334155 !important;
+      background: rgba(2,6,23,.35) !important;
+      text-align: center;
+      padding: 14px;
+      border-radius: 14px;
+    }
+
+    .planner-legend {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--slate-400);
+    }
+
+
+    .communication-grid {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .communication-list {
+      display: grid;
+      gap: 10px;
+      max-height: 620px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .comment-card {
+      border: 1px solid var(--slate-200);
+      background: #f8fafc;
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+
+    .comment-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .comment-user {
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .comment-meta {
+      font-size: 0.85rem;
+      color: var(--slate-500);
+    }
+
+    .comment-text {
+      color: #1e293b;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .comment-form {
+      display: grid;
+      gap: 14px;
+    }
+
+    .comment-textarea {
+      width: 100%;
+      min-height: 160px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid var(--slate-300);
+      background: white;
+      color: var(--navy-950);
+      font: inherit;
+      padding: 12px 14px;
+      outline: none;
+    }
+
+    .comment-textarea:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.18);
+    }
+
+    .gemba-grid {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .gemba-list {
+      display: grid;
+      gap: 12px;
+      max-height: 700px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .gemba-card {
+      border: 1px solid var(--slate-200);
+      background: #f8fafc;
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .gemba-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .gemba-title {
+      font-weight: 800;
+      color: #0f172a;
+      font-size: 1rem;
+    }
+
+    .gemba-meta {
+      font-size: 0.85rem;
+      color: var(--slate-500);
+    }
+
+    .gemba-description {
+      color: #1e293b;
+      line-height: 1.45;
+      margin-bottom: 12px;
+      white-space: pre-wrap;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-idea { background: #dbeafe; color: #1d4ed8; }
+    .status-progress { background: #fef3c7; color: #b45309; }
+    .status-completed { background: #dcfce7; color: #15803d; }
+
+    .gemba-status-dropdown {
+      border: 1px solid var(--slate-300);
+      border-radius: 10px;
+      padding: 6px 8px;
+      font-weight: 700;
+      background: white;
+      cursor: pointer;
+    }
+
+    .task-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .task-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid var(--slate-200);
+    }
+
+    .task-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      margin: 0;
+    }
+
+    .task-text.done {
+      text-decoration: line-through;
+      color: var(--slate-400);
+    }
+
+    .task-add-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .task-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .tiny-btn {
+      border: 0;
+      border-radius: 8px;
+      padding: 6px 8px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .tiny-delete {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .light-indicator {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      box-shadow: 0 0 12px currentColor;
+      flex: 0 0 18px;
+    }
+
+
+
+    .import-panel {
+      margin-top: 18px;
+      border: 1px dashed var(--slate-300);
+      border-radius: 16px;
+      padding: 16px;
+      background: #f8fafc;
+      display: grid;
+      gap: 14px;
+    }
+
+    .import-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+
+    .import-help {
+      font-size: 0.92rem;
+      color: var(--slate-600);
+      line-height: 1.45;
+    }
+
+    .chart-filter-panel {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .chart-filter-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+
+    .multi-select {
+      min-height: 120px;
+      padding: 8px;
+    }
+
+    .filter-hint {
+      font-size: 0.9rem;
+      color: var(--slate-500);
+    }
+
+    .chart-card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chart-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .icon-btn {
+      border: 1px solid var(--slate-300);
+      background: white;
+      color: var(--navy-950);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 700;
+      cursor: pointer;
+      line-height: 1;
+      transition: 0.18s ease;
+    }
+
+    .icon-btn:hover {
+      transform: translateY(-1px);
+      background: #f8fafc;
+    }
+
+    .modal-backdrop {
+      display: none !important;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 24px;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-card {
+      width: min(1200px, 100%);
+      max-height: 90vh;
+      overflow: auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 25px 60px rgba(2, 6, 23, 0.35);
+      padding: 18px;
+    }
+
+    .modal-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .modal-chart-box {
+      position: relative;
+      width: 100%;
+      min-height: 640px;
+      height: 640px;
+    }
+
+
+    @media (max-width: 1550px) {
+      .gameplan-shell { grid-template-columns: 1fr; }
+      .schedule-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 1200px) {
+      .stats-grid, .dashboard-main, .summary-boxes { grid-template-columns: 1fr 1fr; }
+      .audit-row { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 980px) {
+      .schedule-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 860px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .nav { justify-content: flex-start; }
+      .page { padding: 16px; }
+      .stats-grid, .dashboard-main, .summary-boxes, .communication-grid, .gemba-grid { grid-template-columns: 1fr; }
+      .audit-row { grid-template-columns: 1fr; }
+      .button-row .btn, .gameplan-controls .btn { flex: 1 1 auto; }
+      .schedule-grid { grid-template-columns: 1fr; }
+    }
+  
+    .dashboard-main .card h3,
+.rank-grid .card h3 {
+      margin-bottom: 12px;
+      font-size: 1.1rem;
+      font-weight: 900;
+      color: #020617 !important;
+      opacity: 1 !important;
+    }
+
+</style>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-icon">AT</div>
+        <div>
+          <h1 class="brand-title">Department Audit Tracker</h1>
+          <p class="brand-sub">Scores, trends, weekly gameplan, and fewer spreadsheet knife fights.</p>
+        </div>
+      </div>
+      <nav class="nav">
+        <button class="nav-btn active" data-page="dashboard">Dashboard</button>
+        <button class="nav-btn" data-page="gemba">Gemba</button>
+        <button class="nav-btn" data-page="record">Record Audit</button>
+        <button class="nav-btn" data-page="history">Audit History</button>
+        <button class="nav-btn" data-page="charts">Charts</button>
+        <button class="nav-btn" data-page="communication">Communication</button>
+      </nav>
+    </header>
+
+    <main>
+      <section id="dashboard" class="page active">
+        <div class="hero">
+          <div>
+            <h2>Dashboard</h2>
+            <p>Your scorecard and the updated weekly gameplan now share one roof. Miracles do happen.</p>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-primary" id="goRecordBtn">Record New Audits</button>
+            <button class="btn btn-secondary" id="seedDemoBtn">Load Demo Data</button>
+            <button class="btn btn-secondary" id="exportAuditBtn">Export Audit Data</button>
+            <button class="btn btn-danger" id="clearAllBtn">Clear All Audit Data</button>
+          </div>
+        </div>
+
+        <div class="grid stats-grid">
+          <div class="card stat-card">
+            <div class="label">Total Audits</div>
+            <div class="value" id="statTotalAudits">0</div>
+            <div class="subtle">All recorded audit entries</div>
+          </div>
+          <div class="card stat-card">
+            <div class="label">Active Departments</div>
+            <div class="value" id="statActiveDepartments">0</div>
+            <div class="subtle">Departments with at least one audit</div>
+          </div>
+          <div class="card stat-card">
+            <div class="label">Overall Avg Score</div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div class="value" id="statOverallAverage">0.0</div>
+              <div id="overallLight" class="light-indicator"></div>
+            </div>
+            <div class="subtle">Average across all audits</div>
+          </div>
+          <div class="card stat-card">
+            <div class="label">Current Week Avg</div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div class="value" id="statWeekAverage">0.0</div>
+              <div id="weekLight" class="light-indicator"></div>
+            </div>
+            <div class="subtle">Average for current calendar week</div>
+          </div>
+          <div class="card stat-card">
+            <div class="label">Gembas In Progress</div>
+            <div class="value" id="statGembaInProgress">0</div>
+            <div class="subtle">Active improvement items being worked</div>
+          </div>
+          <div class="card stat-card">
+            <div class="label">Top Score</div>
+            <div class="value" id="statTopScore">0</div>
+            <div class="subtle">Best single audit score recorded</div>
+          </div>
+        </div>
+
+        <div class="gameplan-shell">
+          <section class="card gameplan-left">
+            <h3>Audit Picker</h3>
+            <p>Monday–Thursday auto plan, Friday manual overflow, and Maintenance is always scheduled on Friday by default. You can still drag it anywhere else if the week gets weird.</p>
+            <div class="planner-badge">Auto-save enabled • drag/drop • remove audits</div>
+
+            <div class="summary-boxes">
+              <div class="summary-box">
+                <div class="label">Departments</div>
+                <div class="value" id="plannerDeptCount">12</div>
+              </div>
+              <div class="summary-box">
+                <div class="label">Planned Audits</div>
+                <div class="value" id="plannerAuditCount">24</div>
+              </div>
+              <div class="summary-box">
+                <div class="label">Auto Days</div>
+                <div class="value">4</div>
+              </div>
+            </div>
+
+            <div class="gameplan-controls">
+              <button class="btn planner-primary" id="generatePlanBtn">Generate Weekly Plan</button>
+              <button class="btn planner-secondary" id="savePlanBtn">Save Now</button>
+              <button class="btn planner-secondary" id="reloadPlanBtn">Reload Saved</button>
+              <button class="btn planner-secondary" id="exportPlanBtn">Export to Excel</button>
+              <button class="btn planner-secondary" id="resetPlanBtn">Reset Departments</button>
+              <button class="btn planner-danger" id="clearPlanBtn">Clear Schedule + Saved Data</button>
+            </div>
+
+            <h3 style="margin-top:22px;">Departments</h3>
+            <p class="tiny">Each audit card has an <strong>X</strong> button. Clicking it moves that audit into <strong>Unscheduled</strong> instead of deleting it forever.</p>
+            <div class="dept-list" id="deptList"></div>
+
+            <div class="gameplan-controls">
+              <button class="btn planner-secondary" id="addDeptBtn">Add Department</button>
+              <button class="btn planner-secondary" id="removeDeptBtn">Remove Last</button>
+            </div>
+
+            <div class="status-box" id="plannerStatus">
+              Ready. Generate a plan, move stuff around, and Maintenance will start on Friday by default.
+            </div>
+          </section>
+
+          <section class="card gameplan-right">
+            <div class="gameplan-topbar">
+              <div>
+                <h3>Weekly Audit Schedule</h3>
+                <p style="margin:0;color:#94a3b8;">Friday starts empty. Unscheduled acts like a parking lot for audits you want to temporarily remove from the week.</p>
+              </div>
+              <div class="planner-badge">Drag • Drop • Remove • Save</div>
+            </div>
+
+            <div class="schedule-grid" id="scheduleGrid"></div>
+            <div class="planner-legend">Use the X button to remove an audit from a day. It goes to Unscheduled, not the void.</div>
+
+            <div class="grid dashboard-main">
+                      <div class="card">
+                        <h3>Department Average Score Comparison</h3>
+                        <div class="chart-box"><canvas id="dashboardBarChart"></canvas></div>
+                        <div class="subtle">Bars are traffic-light colored by score range.</div>
+                      </div>
+            
+                      <div class="grid rank-grid">
+                        <div class="card">
+                          <h3>Top 3 Departments</h3>
+                          <div id="topThreeList" class="list"></div>
+                        </div>
+                        <div class="card">
+                          <h3>Bottom 3 Departments</h3>
+                          <div id="bottomThreeList" class="list"></div>
+                        </div>
+                        <div class="card">
+                          <h3>Most Improved</h3>
+                          <div id="improvedList" class="list"></div>
+                        </div>
+                      </div>
+                    </div>
+          </section>
+        </div>
+
+        
+      </section>
+
+      <section id="gemba" class="page">
+        <div class="hero">
+          <div>
+            <h2>Gemba</h2>
+            <p>Track ideas, work in progress, and completed Gembas with task lists so the work is actually tied to the improvement item.</p>
+          </div>
+        </div>
+
+        <div class="gemba-grid">
+          <div class="card">
+            <h3>New Gemba Entry</h3>
+            <div class="comment-form">
+              <div class="field">
+                <label for="gembaTitle">Title</label>
+                <input id="gembaTitle" type="text" placeholder="Enter Gemba title..." />
+              </div>
+
+              <div class="field">
+                <label for="gembaStatus">Status</label>
+                <select id="gembaStatus">
+                  <option value="Idea">Idea</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="gembaText">Details</label>
+                <textarea id="gembaText" class="comment-textarea" placeholder="Enter Gemba details..."></textarea>
+              </div>
+
+              <div class="button-row">
+                <button class="btn btn-primary" id="addGembaBtn">Add Gemba</button>
+                <button class="btn btn-secondary" id="clearGembaBtn">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="toolbar">
+              <div class="field" style="min-width:180px;">
+                <label for="gembaStatusFilter">Filter by Status</label>
+                <select id="gembaStatusFilter">
+                  <option value="all">All Statuses</option>
+                  <option value="Idea">Idea</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+              <div class="field" style="min-width:220px;">
+                <label for="gembaSearch">Search</label>
+                <input id="gembaSearch" type="text" placeholder="Search Gembas or tasks..." />
+              </div>
+            </div>
+
+            <div id="gembaList" class="gemba-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="record" class="page">
+        <div class="hero">
+          <div>
+            <h2>Record Audit</h2>
+            <p>Enter one audit or a whole stack at once. Because entering them one by one is an outstanding way to waste your life.</p>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-secondary" id="addRowBtn">Add Row</button>
+            <button class="btn btn-primary" id="saveAuditsBtn">Submit All Rows</button>
+          </div>
+        </div>
+        <div class="card">
+          <div id="auditRows" class="form-wrap"></div>
+
+          <div class="import-panel">
+            <div>
+              <h3 style="margin:0 0 8px;">Import Audit Data</h3>
+              <div class="import-help">
+                Import from Excel or CSV using these columns exactly:
+                <strong>Department</strong>, <strong>Score</strong>, <strong>Audit Date</strong>, <strong>Notes</strong>.
+                <br />
+                Audit Date should be a real date column or a format like <strong>2026-04-10</strong>.
+              </div>
+            </div>
+
+            <div class="import-actions">
+              <div class="field" style="min-width:280px;">
+                <label for="importAuditFile">Select Excel or CSV File</label>
+                <input id="importAuditFile" type="file" accept=".xlsx,.xls,.csv" />
+              </div>
+              <button class="btn btn-primary" id="importAuditBtn" type="button">Import Data</button>
+              <button class="btn btn-secondary" id="downloadImportTemplateBtn" type="button">Download Example Format</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="history" class="page">
+        <div class="hero">
+          <div>
+            <h2>Audit History</h2>
+            <p>Full audit log with filters, dates, notes, and delete buttons for those glorious little accidents.</p>
+          </div>
+          <div class="button-row">
+            <button class="btn btn-secondary" id="exportAuditHistoryBtn">Export Audit Data</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="toolbar">
+            <div class="field" style="min-width:180px;">
+              <label for="historyWeekFilter">Filter by Week</label>
+              <select id="historyWeekFilter">
+                <option value="all">All Weeks</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:180px;">
+              <label for="historyMonthFilter">Filter by Month</label>
+              <select id="historyMonthFilter">
+                <option value="all">All Months</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:180px;">
+              <label for="historyYearFilter">Filter by Year</label>
+              <select id="historyYearFilter">
+                <option value="all">All Years</option>
+              </select>
+            </div>
+            <div class="field" style="min-width:250px;">
+              <label for="historyDepartmentFilter">Filter by Department</label>
+              <select id="historyDepartmentFilter"></select>
+            </div>
+            <div class="field" style="min-width:220px;">
+              <label for="historySearch">Search Notes</label>
+              <input id="historySearch" type="text" placeholder="Type a keyword..." />
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Department</th>
+                  <th>Score</th>
+                  <th>Notes</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section id="charts" class="page">
+        <div class="hero">
+          <div>
+            <h2>Charts</h2>
+            <p>Trend lines over time and department averages with date range and multi-department filtering.</p>
+          </div>
+        </div>
+        <div class="card chart-filter-panel">
+          <h3 style="margin-bottom:0;">Chart Filters</h3>
+          <div class="chart-filter-row">
+            <div class="field" style="min-width:180px;">
+              <label for="chartDateFrom">Date From</label>
+              <input id="chartDateFrom" type="date" />
+            </div>
+            <div class="field" style="min-width:180px;">
+              <label for="chartDateTo">Date To</label>
+              <input id="chartDateTo" type="date" />
+            </div>
+            <div class="field" style="min-width:290px; flex:1 1 320px;">
+              <label for="chartDepartmentSelect">Departments (select one or multiple)</label>
+              <select id="chartDepartmentSelect" class="multi-select" multiple></select>
+            </div>
+          </div>
+          <div class="chart-filter-row">
+            <button class="btn btn-secondary" id="chartSelectAllBtn" type="button">Select All Departments</button>
+            <button class="btn btn-secondary" id="chartClearDeptBtn" type="button">Clear Departments</button>
+            <button class="btn btn-secondary" id="chartResetFiltersBtn" type="button">Reset Chart Filters</button>
+          </div>
+          <div class="filter-hint">Tip: Hold Ctrl on Windows or Command on Mac to pick multiple departments.</div>
+        </div>
+        <div class="grid dashboard-main">
+          <div class="card">
+            <div class="chart-card-head">
+              <h3>Score Trends Over Time</h3>
+              <div class="chart-tools">
+                <button class="icon-btn chart-download-btn" type="button" data-canvas="trendLineChart" data-filename="score_trends_over_time">⤓</button>
+              </div>
+            </div>
+            <div class="chart-box"><canvas id="trendLineChart"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="chart-card-head">
+              <h3>Department Average Score</h3>
+              <div class="chart-tools">
+                <button class="icon-btn chart-download-btn" type="button" data-canvas="chartsBarChart" data-filename="department_average_score">⤓</button>
+              </div>
+            </div>
+            <div class="chart-box"><canvas id="chartsBarChart"></canvas></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="communication" class="page">
+        <div class="hero">
+          <div>
+            <h2>Communication</h2>
+            <p>Log comments, updates, and follow-up notes. User selection is required before an entry can be saved.</p>
+          </div>
+        </div>
+
+        <div class="communication-grid">
+          <div class="card">
+            <h3>New Comment</h3>
+            <div class="comment-form">
+              <div class="field">
+                <label for="commUser">User</label>
+                <select id="commUser">
+                  <option value="">Select user</option>
+                  <option value="James">James</option>
+                  <option value="Pablo">Pablo</option>
+                  <option value="Ops">Ops</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="commText">Comment</label>
+                <textarea id="commText" class="comment-textarea" placeholder="Enter comment..."></textarea>
+              </div>
+
+              <div class="button-row">
+                <button class="btn btn-primary" id="addCommentBtn">Add Comment</button>
+                <button class="btn btn-secondary" id="clearCommentBtn">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="toolbar">
+              <div class="field" style="min-width:170px;">
+                <label for="commDayFilter">Sort by Day</label>
+                <select id="commDayFilter">
+                  <option value="all">All Days</option>
+                </select>
+              </div>
+              <div class="field" style="min-width:170px;">
+                <label for="commWeekFilter">Sort by Week</label>
+                <select id="commWeekFilter">
+                  <option value="all">All Weeks</option>
+                </select>
+              </div>
+              <div class="field" style="min-width:170px;">
+                <label for="commMonthFilter">Sort by Month</label>
+                <select id="commMonthFilter">
+                  <option value="all">All Months</option>
+                </select>
+              </div>
+              <div class="field" style="min-width:170px;">
+                <label for="commYearFilter">Sort by Year</label>
+                <select id="commYearFilter">
+                  <option value="all">All Years</option>
+                </select>
+              </div>
+            </div>
+
+            <div id="communicationList" class="communication-list"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script>
+    const AUDIT_STORAGE_KEY = 'departmentAuditTrackerData_v3_combined';
+    const PLANNER_STORAGE_KEY = 'audit_picker_saved_v3_combined';
+    const COMM_STORAGE_KEY = 'departmentAuditCommunication_v2';
+    const GEMBA_STORAGE_KEY = 'departmentAuditGemba_v1';
+
+    const departments = [
+      'SOLLiD Assembly',
+      'envii Assembly',
+      'Kitting',
+      'Drawer Box',
+      'Fabrication',
+      'Door Cell',
+      'CNC/Mill',
+      'Whitewood',
+      'Finishing',
+      'Receiving',
+      'Shipping',
+      'Maintenance'
+    ];
+
+    const plannerDefaultDepartments = [
+      'SOLLiD Assembly',
+      'envii Assembly',
+      'Kitting',
+      'Drawer Box',
+      'Door Cell',
+      'CNC/Mill',
+      'Fabrication',
+      'Whitewood',
+      'Receiving',
+      'Shipping',
+      'Finishing',
+      'Maintenance'
+    ];
+
+    const plannerAutoDays = [
+      { name: 'Monday' },
+      { name: 'Tuesday' },
+      { name: 'Wednesday' },
+      { name: 'Thursday' }
+    ];
+
+    const plannerAllDays = [
+      { name: 'Monday', manualOnly: false },
+      { name: 'Tuesday', manualOnly: false },
+      { name: 'Wednesday', manualOnly: false },
+      { name: 'Thursday', manualOnly: false },
+      { name: 'Friday', manualOnly: true },
+      { name: 'Unscheduled', manualOnly: true }
+    ];
+
+    let audits = loadAudits();
+    let visibleDepartments = new Set(departments);
+    let chartDateFromValue = '';
+    let chartDateToValue = '';
+    let currentSchedule = null;
+    let draggedItem = null;
+    let communicationEntries = loadCommunicationEntries();
+    let gembaEntries = loadGembaEntries();
+
+    const navButtons = document.querySelectorAll('.nav-btn');
+    const pages = document.querySelectorAll('.page');
+    const auditRowsEl = document.getElementById('auditRows');
+    const historyDepartmentFilter = document.getElementById('historyDepartmentFilter');
+    const historySearch = document.getElementById('historySearch');
+    const deptList = document.getElementById('deptList');
+    const scheduleGrid = document.getElementById('scheduleGrid');
+    const plannerStatus = document.getElementById('plannerStatus');
+    const commUser = document.getElementById('commUser');
+    const commText = document.getElementById('commText');
+    const commDayFilter = document.getElementById('commDayFilter');
+    const commWeekFilter = document.getElementById('commWeekFilter');
+    const commMonthFilter = document.getElementById('commMonthFilter');
+    const commYearFilter = document.getElementById('commYearFilter');
+    const communicationList = document.getElementById('communicationList');
+    const importAuditFile = document.getElementById('importAuditFile');
+    const gembaTitle = document.getElementById('gembaTitle');
+    const gembaStatus = document.getElementById('gembaStatus');
+    const gembaText = document.getElementById('gembaText');
+    const gembaStatusFilter = document.getElementById('gembaStatusFilter');
+    const gembaSearch = document.getElementById('gembaSearch');
+    const gembaList = document.getElementById('gembaList');
+    const chartDateFrom = document.getElementById('chartDateFrom');
+    const chartDateTo = document.getElementById('chartDateTo');
+    const chartDepartmentSelect = document.getElementById('chartDepartmentSelect');
+    const chartSelectAllBtn = document.getElementById('chartSelectAllBtn');
+    const chartClearDeptBtn = document.getElementById('chartClearDeptBtn');
+    const chartResetFiltersBtn = document.getElementById('chartResetFiltersBtn');
+    const chartModal = document.getElementById('chartModal');
+    const chartModalTitle = document.getElementById('chartModalTitle');
+    const modalDownloadBtn = document.getElementById('modalDownloadBtn');
+    const closeChartModalBtn = document.getElementById('closeChartModalBtn');
+    const chartModalCanvas = document.getElementById('chartModalCanvas');
+
+    let expandedChartType = null;
+    let expandedChartTitle = '';
+
+    document.getElementById('addRowBtn').addEventListener('click', () => addAuditRow());
+    document.getElementById('saveAuditsBtn').addEventListener('click', saveAuditRows);
+    document.getElementById('goRecordBtn').addEventListener('click', () => switchPage('record'));
+    document.getElementById('seedDemoBtn').addEventListener('click', loadDemoData);
+    document.getElementById('exportAuditBtn').addEventListener('click', exportAuditData);
+    document.getElementById('exportAuditHistoryBtn').addEventListener('click', exportAuditData);
+    document.getElementById('clearAllBtn').addEventListener('click', clearAllAuditData);
+
+    document.getElementById('generatePlanBtn').addEventListener('click', generateWeeklyPlan);
+    document.getElementById('savePlanBtn').addEventListener('click', () => savePlanner('Saved right now. No drama.'));
+    document.getElementById('reloadPlanBtn').addEventListener('click', () => {
+      if (!loadPlanner()) plannerStatus.innerHTML = 'No saved planner data found yet.';
+      renderAll();
+    });
+    document.getElementById('exportPlanBtn').addEventListener('click', exportPlannerToExcel);
+    document.getElementById('resetPlanBtn').addEventListener('click', resetPlannerDefaults);
+    document.getElementById('clearPlanBtn').addEventListener('click', clearPlannerEverything);
+    document.getElementById('addDeptBtn').addEventListener('click', addPlannerDepartment);
+    document.getElementById('removeDeptBtn').addEventListener('click', removePlannerDepartment);
+    document.getElementById('addCommentBtn').addEventListener('click', addCommunicationEntry);
+    document.getElementById('clearCommentBtn').addEventListener('click', clearCommunicationDraft);
+    document.getElementById('addGembaBtn').addEventListener('click', addGembaEntry);
+    document.getElementById('clearGembaBtn').addEventListener('click', clearGembaDraft);
+    document.getElementById('importAuditBtn').addEventListener('click', importAuditData);
+    document.getElementById('downloadImportTemplateBtn').addEventListener('click', downloadImportTemplate);
+
+    if (closeChartModalBtn) {
+      closeChartModalBtn.addEventListener('click', closeChartModal);
+    }
+    if (modalDownloadBtn) {
+      modalDownloadBtn.addEventListener('click', () => downloadCanvasAsPng(chartModalCanvas, expandedChartTitle || 'chart'));
+    }
+    if (chartModal) {
+      chartModal.addEventListener('click', (e) => {
+        if (e.target === chartModal) closeChartModal();
+      });
+    }
+
+    historyDepartmentFilter.addEventListener('change', renderHistory);
+    historySearch.addEventListener('input', renderHistory);
+    document.getElementById('historyWeekFilter').addEventListener('change', renderHistory);
+    document.getElementById('historyMonthFilter').addEventListener('change', renderHistory);
+    document.getElementById('historyYearFilter').addEventListener('change', renderHistory);
+    commDayFilter.addEventListener('change', renderCommunicationEntries);
+    commWeekFilter.addEventListener('change', renderCommunicationEntries);
+    commMonthFilter.addEventListener('change', renderCommunicationEntries);
+    commYearFilter.addEventListener('change', renderCommunicationEntries);
+    gembaStatusFilter.addEventListener('change', renderGembaEntries);
+    gembaSearch.addEventListener('input', renderGembaEntries);
+    chartDateFrom.addEventListener('change', handleChartFilterChange);
+    chartDateTo.addEventListener('change', handleChartFilterChange);
+    chartDepartmentSelect.addEventListener('change', handleChartDepartmentChange);
+    chartSelectAllBtn.addEventListener('click', selectAllChartDepartments);
+    chartClearDeptBtn.addEventListener('click', clearChartDepartments);
+    chartResetFiltersBtn.addEventListener('click', resetChartFilters);
+    window.addEventListener('resize', renderAll);
+
+    navButtons.forEach(btn => {
+      btn.addEventListener('click', () => switchPage(btn.dataset.page));
+    });
+
+
+    document.querySelectorAll('.chart-download-btn').forEach(btn => {
+      btn.addEventListener('click', () => downloadCanvasAsPng(document.getElementById(btn.dataset.canvas), btn.dataset.filename));
+    });
+
+
+
+    function switchPage(pageId) {
+      navButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.page === pageId));
+      pages.forEach(page => page.classList.toggle('active', page.id === pageId));
+      if (pageId === 'record' && auditRowsEl.children.length === 0) addAuditRow();
+      renderAll();
+    }
+
+    function loadAudits() {
+      try {
+        const raw = localStorage.getItem(AUDIT_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (err) {
+        console.error('Could not load audits:', err);
+        return [];
+      }
+    }
+
+    function saveAudits() {
+      localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(audits));
+    }
+
+    function createId() {
+      return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    }
+
+    function getScoreColor(score) {
+      if (score >= 90) return '#10b981';
+      if (score >= 80) return '#f59e0b';
+      return '#ef4444';
+    }
+
+    function scoreLabel(score) {
+      return Number(score).toFixed(0);
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      const d = new Date(dateStr + 'T00:00:00');
+      if (Number.isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+
+    function shortDate(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00');
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
+
+    function sortByDateAsc(list) {
+      return [...list].sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    function average(nums) {
+      return nums.length ? nums.reduce((sum, n) => sum + n, 0) / nums.length : 0;
+    }
+
+    function shuffle(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function escapeAttribute(str) {
+      return escapeHtml(str);
+    }
+
+    function groupByDepartment() {
+      const map = new Map();
+      departments.forEach(dept => map.set(dept, []));
+      audits.forEach(audit => {
+        if (!map.has(audit.department)) map.set(audit.department, []);
+        map.get(audit.department).push(audit);
+      });
+      return map;
+    }
+
+    function getDepartmentStats() {
+      const grouped = groupByDepartment();
+      return departments.map(department => {
+        const deptAudits = sortByDateAsc(grouped.get(department) || []);
+        const scores = deptAudits.map(a => Number(a.score));
+        const avg = average(scores);
+        const count = scores.length;
+        const latestAudit = count ? deptAudits[count - 1] : null;
+        const latestScore = latestAudit ? Number(latestAudit.score) : 0;
+        const latestDate = latestAudit ? latestAudit.date : null;
+        let improved = null;
+
+        if (count >= 2) {
+          const midpoint = Math.floor(count / 2);
+          const firstHalf = deptAudits.slice(0, midpoint || 1).map(a => Number(a.score));
+          const secondHalf = deptAudits.slice(midpoint).map(a => Number(a.score));
+          if (firstHalf.length && secondHalf.length) {
+            improved = average(secondHalf) - average(firstHalf);
+          }
+        }
+
+        return { department, avg, count, improved, latestScore, latestDate, audits: deptAudits };
+      });
+    }
+
+    function renderDashboard() {
+      const stats = getDepartmentStats();
+      const active = stats.filter(s => s.count > 0);
+      const allScores = audits.map(a => Number(a.score));
+      const overallAvg = average(allScores);
+      const topScore = allScores.length ? Math.max(...allScores) : 0;
+
+      const today = new Date();
+      const currentWeek = getWeekNumber(today.toISOString().slice(0,10));
+      const currentYear = today.getFullYear();
+      const weekAudits = audits.filter(a => {
+        return getWeekNumber(a.date) == currentWeek &&
+               new Date(a.date).getFullYear() == currentYear;
+      });
+      const weekAvg = average(weekAudits.map(a => Number(a.score)));
+
+      function getLightColor(score) {
+        if (score >= 90) return '#10b981';
+        if (score >= 80) return '#f59e0b';
+        return '#ef4444';
+      }
+
+      document.getElementById('statTotalAudits').textContent = audits.length;
+      document.getElementById('statActiveDepartments').textContent = active.length;
+      document.getElementById('statOverallAverage').textContent = Number(overallAvg || 0).toFixed(1);
+      document.getElementById('statWeekAverage').textContent = Number(weekAvg || 0).toFixed(1);
+      document.getElementById('statTopScore').textContent = scoreLabel(topScore);
+
+      const overallLight = document.getElementById('overallLight');
+      const weekLight = document.getElementById('weekLight');
+      const overallColor = getLightColor(overallAvg || 0);
+      const weekColor = getLightColor(weekAvg || 0);
+      overallLight.style.background = overallColor;
+      overallLight.style.color = overallColor;
+      weekLight.style.background = weekColor;
+      weekLight.style.color = weekColor;
+
+      const byLatestDesc = [...active].sort((a, b) => {
+        if (b.latestScore !== a.latestScore) return b.latestScore - a.latestScore;
+        return new Date(b.latestDate) - new Date(a.latestDate);
+      });
+      const byLatestAsc = [...active].sort((a, b) => {
+        if (a.latestScore !== b.latestScore) return a.latestScore - b.latestScore;
+        return new Date(b.latestDate) - new Date(a.latestDate);
+      });
+      const byImproved = [...active].filter(s => s.improved !== null).sort((a, b) => b.improved - a.improved);
+
+      renderRankingList(document.getElementById('topThreeList'), byLatestDesc.slice(0, 3), 'latest');
+      renderRankingList(document.getElementById('bottomThreeList'), byLatestAsc.slice(0, 3), 'latest');
+      renderRankingList(document.getElementById('improvedList'), byImproved.slice(0, 3), 'improved');
+
+      drawBarChart('dashboardBarChart', active.sort((a, b) => b.avg - a.avg), { valueKey: 'avg' });
+    }
+
+    function renderRankingList(container, list, mode) {
+      if (!list.length) {
+        container.innerHTML = `<div class="empty-state">No audit data yet.</div>`;
+        return;
+      }
+      container.innerHTML = list.map(item => {
+        const val = mode === 'improved'
+          ? `${item.improved >= 0 ? '+' : ''}${item.improved.toFixed(1)}`
+          : item.latestScore.toFixed(1);
+        const color = getScoreColor(item.latestScore);
+        return `
+          <div class="list-item">
+            <div class="item-left">
+              <div class="dept-name">${escapeHtml(item.department)}</div>
+            </div>
+            <div class="score-badge" style="background:${color};">
+              <span class="glow-dot" style="color:${color}; background:${color};"></span>
+              ${val}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function addAuditRow(defaults = {}) {
+      const row = document.createElement('div');
+      row.className = 'audit-row';
+      row.innerHTML = `
+        <div class="field">
+          <label>Department</label>
+          <select class="row-department">
+            ${departments.map(dept => `<option value="${dept}" ${defaults.department === dept ? 'selected' : ''}>${dept}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field">
+          <label>Score</label>
+          <input class="row-score" type="number" min="0" max="100" step="1" value="${defaults.score ?? ''}" placeholder="0-100" />
+        </div>
+        <div class="field">
+          <label>Audit Date</label>
+          <input class="row-date" type="date" value="${defaults.date || new Date().toISOString().slice(0,10)}" />
+        </div>
+        <div class="field">
+          <label>Notes (Optional)</label>
+          <input class="row-notes" type="text" value="${escapeAttribute(defaults.notes || '')}" placeholder="Add notes..." />
+        </div>
+        <div class="field">
+          <button class="btn btn-danger row-remove-btn" type="button">Remove</button>
+        </div>
+      `;
+      row.querySelector('.row-remove-btn').addEventListener('click', () => row.remove());
+      auditRowsEl.appendChild(row);
+    }
+
+    function saveAuditRows() {
+      const rows = [...auditRowsEl.querySelectorAll('.audit-row')];
+      if (!rows.length) {
+        addAuditRow();
+        return;
+      }
+
+      const newAudits = [];
+      let hasError = false;
+
+      rows.forEach(row => {
+        const department = row.querySelector('.row-department').value;
+        const score = Number(row.querySelector('.row-score').value);
+        const date = row.querySelector('.row-date').value;
+        const notes = row.querySelector('.row-notes').value.trim();
+        row.style.borderColor = '#dbeafe';
+
+        if (!department || Number.isNaN(score) || score < 0 || score > 100 || !date) {
+          row.style.borderColor = '#ef4444';
+          hasError = true;
+          return;
+        }
+        newAudits.push({ id: createId(), department, score, date, notes });
+      });
+
+      if (hasError) {
+        alert('Some rows are incomplete or have invalid scores. Keep scores between 0 and 100.');
+        return;
+      }
+
+      audits.push(...newAudits);
+      audits = sortByDateAsc(audits);
+      saveAudits();
+      auditRowsEl.innerHTML = '';
+      addAuditRow();
+      populateHistoryFilter();
+      renderAll();
+      switchPage('dashboard');
+    }
+
+    function populateHistoryFilter() {
+      const weekSet=new Set();
+      const monthSet=new Set();
+      const yearSet=new Set();
+      const currentDept = historyDepartmentFilter.value || 'all';
+      const currentWeek = document.getElementById('historyWeekFilter').value || 'all';
+      const currentMonth = document.getElementById('historyMonthFilter').value || 'all';
+      const currentYear = document.getElementById('historyYearFilter').value || 'all';
+
+      audits.forEach(a=>{
+        const d = new Date(a.date);
+        weekSet.add(getWeekNumber(a.date));
+        monthSet.add(d.getMonth()+1);
+        yearSet.add(d.getFullYear());
+      });
+      const weekSel=document.getElementById('historyWeekFilter');
+      const monthSel=document.getElementById('historyMonthFilter');
+      const yearSel=document.getElementById('historyYearFilter');
+
+      weekSel.innerHTML='<option value="all">All Weeks</option>'+[...weekSet].sort((a,b)=>a-b).map(w=>`<option value="${w}">Week ${w}</option>`).join('');
+      monthSel.innerHTML='<option value="all">All Months</option>'+[...monthSet].sort((a,b)=>a-b).map(m=>`<option value="${m}">${['January','February','March','April','May','June','July','August','September','October','November','December'][m-1]}</option>`).join('');
+      yearSel.innerHTML='<option value="all">All Years</option>'+[...yearSet].sort((a,b)=>b-a).map(y=>`<option value="${y}">${y}</option>`).join('');
+
+      const current = historyDepartmentFilter.value;
+      historyDepartmentFilter.innerHTML = `<option value="all">All Departments</option>` +
+        departments.map(dept => `<option value="${dept}">${dept}</option>`).join('');
+      historyDepartmentFilter.value = currentDept || current || 'all';
+      weekSel.value = [...weekSet].map(String).includes(currentWeek) ? currentWeek : 'all';
+      monthSel.value = [...monthSet].map(String).includes(currentMonth) ? currentMonth : 'all';
+      yearSel.value = [...yearSet].map(String).includes(currentYear) ? currentYear : 'all';
+    }
+
+    
+    function getWeekNumber(dateStr){
+      const d=new Date(dateStr);
+      const onejan=new Date(d.getFullYear(),0,1);
+      return Math.ceil((((d - onejan) / 86400000) + onejan.getDay()+1)/7);
+    }
+
+    function renderHistory() {
+      const tbody = document.getElementById('historyTableBody');
+      const selectedDept = historyDepartmentFilter.value || 'all';
+      const search = historySearch.value.trim().toLowerCase();
+
+      const weekVal = document.getElementById('historyWeekFilter').value;
+      const monthVal = document.getElementById('historyMonthFilter').value;
+
+      const filtered = [...audits]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .filter(a => selectedDept === 'all' || a.department === selectedDept)
+        .filter(a => !search || (a.notes || '').toLowerCase().includes(search))
+        .filter(a => weekVal==='all' || getWeekNumber(a.date)==weekVal)
+        .filter(a => monthVal==='all' || new Date(a.date).getMonth()+1==monthVal)
+        .filter(a => document.getElementById('historyYearFilter').value==='all' || new Date(a.date).getFullYear()==document.getElementById('historyYearFilter').value);
+
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">No audit entries found.</div></td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(audit => {
+        const color = getScoreColor(audit.score);
+        return `
+          <tr>
+            <td>${formatDate(audit.date)}</td>
+            <td>${escapeHtml(audit.department)}</td>
+            <td>
+              <span class="score-badge" style="background:${color};">
+                <span class="glow-dot" style="color:${color}; background:${color};"></span>
+                ${scoreLabel(audit.score)}
+              </span>
+            </td>
+            <td>${escapeHtml(audit.notes || '—')}</td>
+            <td><button class="btn btn-danger delete-btn" data-id="${audit.id}">Delete</button></td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteAudit(btn.dataset.id));
+      });
+    }
+
+    function deleteAudit(id) {
+      audits = audits.filter(a => a.id !== id);
+      saveAudits();
+      renderAll();
+    }
+
+    function populateChartDepartmentSelect() {
+      const currentSelected = new Set(visibleDepartments);
+      chartDepartmentSelect.innerHTML = departments.map(department =>
+        `<option value="${department}" ${currentSelected.has(department) ? 'selected' : ''}>${department}</option>`
+      ).join('');
+    }
+
+    function handleChartDepartmentChange() {
+      const selected = [...chartDepartmentSelect.selectedOptions].map(option => option.value);
+      visibleDepartments = new Set(selected);
+      renderCharts();
+    }
+
+    function handleChartFilterChange() {
+      chartDateFromValue = chartDateFrom.value;
+      chartDateToValue = chartDateTo.value;
+      renderCharts();
+    }
+
+    function selectAllChartDepartments() {
+      visibleDepartments = new Set(departments);
+      populateChartDepartmentSelect();
+      renderCharts();
+    }
+
+    function clearChartDepartments() {
+      visibleDepartments = new Set();
+      populateChartDepartmentSelect();
+      renderCharts();
+    }
+
+    function resetChartFilters() {
+      visibleDepartments = new Set(departments);
+      chartDateFromValue = '';
+      chartDateToValue = '';
+      chartDateFrom.value = '';
+      chartDateTo.value = '';
+      populateChartDepartmentSelect();
+      renderCharts();
+    }
+
+    function getFilteredChartAudits() {
+      return audits.filter(audit => {
+        const deptMatch = visibleDepartments.has(audit.department);
+        const afterStart = !chartDateFromValue || audit.date >= chartDateFromValue;
+        const beforeEnd = !chartDateToValue || audit.date <= chartDateToValue;
+        return deptMatch && afterStart && beforeEnd;
+      });
+    }
+
+    function getFilteredChartStats() {
+      const filteredAudits = getFilteredChartAudits();
+      const grouped = new Map();
+      departments.forEach(dept => grouped.set(dept, []));
+      filteredAudits.forEach(audit => {
+        if (!grouped.has(audit.department)) grouped.set(audit.department, []);
+        grouped.get(audit.department).push(audit);
+      });
+
+      return departments
+        .filter(department => visibleDepartments.has(department))
+        .map(department => {
+          const deptAudits = sortByDateAsc(grouped.get(department) || []);
+          const scores = deptAudits.map(a => Number(a.score));
+          return {
+            department,
+            avg: average(scores),
+            count: scores.length,
+            audits: deptAudits
+          };
+        });
+    }
+
+    function renderChartFilters() {
+      populateChartDepartmentSelect();
+    }
+
+    function renderCharts() {
+      renderChartFilters();
+      const filteredStats = getFilteredChartStats().filter(s => s.count > 0);
+      drawBarChart('chartsBarChart', filteredStats.sort((a, b) => b.avg - a.avg), { valueKey: 'avg' });
+      drawLineChart('trendLineChart', filteredStats);
+    }
+
+    function drawBarChart(canvasId, data, options = {}) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = setupCanvas(canvas);
+      if (!ctx) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      if (!data.length) {
+        drawEmptyChart(ctx, width, height, 'No data to chart yet');
+        return;
+      }
+
+      const padding = { top: 25, right: 16, bottom: 96, left: 46 };
+      const chartW = width - padding.left - padding.right;
+      const chartH = height - padding.top - padding.bottom;
+      const maxVal = 100;
+      const stepY = 20;
+
+      ctx.font = '12px Inter, sans-serif';
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.fillStyle = '#64748b';
+      ctx.lineWidth = 1;
+
+      for (let y = 0; y <= maxVal; y += stepY) {
+        const py = padding.top + chartH - (y / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, py);
+        ctx.lineTo(width - padding.right, py);
+        ctx.stroke();
+        ctx.fillText(String(y), 10, py + 4);
+      }
+
+      const barGap = 12;
+      const barWidth = Math.max(24, (chartW - barGap * (data.length - 1)) / data.length);
+
+      data.forEach((item, index) => {
+        const value = item[options.valueKey || 'avg'] || 0;
+        const x = padding.left + index * (barWidth + barGap);
+        const barHeight = (value / maxVal) * chartH;
+        const y = padding.top + chartH - barHeight;
+        const color = getScoreColor(value);
+
+        roundRect(ctx, x, y, barWidth, barHeight, 12, color);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 12px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(value.toFixed(1), x + barWidth / 2, y - 8);
+
+        ctx.save();
+        ctx.translate(x + barWidth / 2, height - 10);
+        ctx.rotate(-Math.PI / 5);
+        ctx.fillStyle = '#334155';
+        ctx.font = '12px Inter, sans-serif';
+        ctx.fillText(item.department, 0, 0);
+        ctx.restore();
+      });
+
+      ctx.textAlign = 'left';
+    }
+
+    function drawLineChart(canvasId, departmentStats) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = setupCanvas(canvas);
+      if (!ctx) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      const visibleData = departmentStats.filter(s => s.count > 0);
+      if (!visibleData.length) {
+        drawEmptyChart(ctx, width, height, 'No departments selected or no data available');
+        return;
+      }
+
+      const allDates = [...new Set(visibleData.flatMap(s => s.audits.map(a => a.date)))].sort();
+      if (!allDates.length) {
+        drawEmptyChart(ctx, width, height, 'No dates available');
+        return;
+      }
+
+      const padding = { top: 48, right: 24, bottom: 52, left: 46 };
+      const chartW = width - padding.left - padding.right;
+      const chartH = height - padding.top - padding.bottom;
+      const maxVal = 100;
+
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.fillStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.font = '12px Inter, sans-serif';
+
+      for (let y = 0; y <= maxVal; y += 20) {
+        const py = padding.top + chartH - (y / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, py);
+        ctx.lineTo(width - padding.right, py);
+        ctx.stroke();
+        ctx.fillText(String(y), 10, py + 4);
+      }
+
+      allDates.forEach((date, index) => {
+        const x = padding.left + (allDates.length === 1 ? chartW / 2 : index * (chartW / (allDates.length - 1)));
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, height - padding.bottom);
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(x, height - 12);
+        ctx.rotate(-Math.PI / 6);
+        ctx.fillStyle = '#475569';
+        ctx.fillText(shortDate(date), 0, 0);
+        ctx.restore();
+      });
+
+      visibleData.forEach((deptStat, deptIndex) => {
+        const auditsByDate = new Map(deptStat.audits.map(a => [a.date, Number(a.score)]));
+        const lineColor = palette(deptIndex);
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        let started = false;
+
+        allDates.forEach((date, index) => {
+          if (!auditsByDate.has(date)) return;
+          const score = auditsByDate.get(date);
+          const x = padding.left + (allDates.length === 1 ? chartW / 2 : index * (chartW / (allDates.length - 1)));
+          const y = padding.top + chartH - (score / maxVal) * chartH;
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+
+        allDates.forEach((date, index) => {
+          if (!auditsByDate.has(date)) return;
+          const score = auditsByDate.get(date);
+          const x = padding.left + (allDates.length === 1 ? chartW / 2 : index * (chartW / (allDates.length - 1)));
+          const y = padding.top + chartH - (score / maxVal) * chartH;
+          ctx.beginPath();
+          ctx.fillStyle = lineColor;
+          ctx.arc(x, y, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+      });
+
+      drawLegend(ctx, width, 10, visibleData.map((d, i) => ({ name: d.department, color: palette(i) })));
+    }
+
+    function drawLegend(ctx, width, startY, items) {
+      let x = 56;
+      let y = startY;
+      ctx.font = '12px Inter, sans-serif';
+      items.forEach(item => {
+        const labelWidth = ctx.measureText(item.name).width;
+        if (x + labelWidth + 30 > width - 20) {
+          y += 18;
+          x = 56;
+        }
+        ctx.fillStyle = item.color;
+        ctx.fillRect(x, y, 12, 12);
+        ctx.fillStyle = '#334155';
+        ctx.fillText(item.name, x + 18, y + 10);
+        x += labelWidth + 34;
+      });
+    }
+
+    function palette(index) {
+      const colors = ['#2563eb', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16', '#dc2626', '#6366f1', '#0f766e', '#9333ea', '#a16207'];
+      return colors[index % colors.length];
+    }
+
+    function setupCanvas(canvas) {
+      if (!canvas) return null;
+      const ratio = window.devicePixelRatio || 1;
+      const cssWidth = Math.max(300, Math.floor(canvas.clientWidth));
+      const cssHeight = Math.max(260, Math.floor(canvas.clientHeight));
+      canvas.width = cssWidth * ratio;
+      canvas.height = cssHeight * ratio;
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      return ctx;
+    }
+
+    function drawEmptyChart(ctx, width, height, message) {
+      ctx.fillStyle = '#64748b';
+      ctx.font = '16px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(message, width / 2, height / 2);
+      ctx.textAlign = 'left';
+    }
+
+    function roundRect(ctx, x, y, width, height, radius, fillColor) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height);
+      ctx.lineTo(x, y + height);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fillStyle = fillColor;
+      ctx.fill();
+    }
+
+    function emptySchedule() {
+      const out = {};
+      plannerAllDays.forEach(day => out[day.name] = []);
+      return out;
+    }
+
+    function getPlannerDepartments() {
+      return [...deptList.querySelectorAll('input')]
+        .map(input => input.value.trim())
+        .filter(Boolean);
+    }
+
+    function updatePlannerSummary() {
+      const count = getPlannerDepartments().length;
+      document.getElementById('plannerDeptCount').textContent = count;
+      document.getElementById('plannerAuditCount').textContent = count * 2;
+    }
+
+    function savePlanner(message = null) {
+      try {
+        const data = {
+          departments: getPlannerDepartments(),
+          schedule: currentSchedule
+        };
+        localStorage.setItem(PLANNER_STORAGE_KEY, JSON.stringify(data));
+        if (message) plannerStatus.innerHTML = message;
+      } catch (err) {
+        plannerStatus.innerHTML = 'Save failed. Your browser may be blocking local storage for this file.';
+      }
+    }
+
+    function loadPlanner() {
+      try {
+        const raw = localStorage.getItem(PLANNER_STORAGE_KEY);
+        if (!raw) return false;
+
+        const data = JSON.parse(raw);
+
+        if (Array.isArray(data.departments) && data.departments.length) {
+          renderDeptInputs(data.departments);
+        } else {
+          renderDeptInputs(plannerDefaultDepartments);
+        }
+
+        if (data.schedule && typeof data.schedule === 'object') {
+          currentSchedule = data.schedule;
+          plannerAllDays.forEach(day => {
+            if (!Array.isArray(currentSchedule[day.name])) currentSchedule[day.name] = [];
+          });
+          renderSchedule(currentSchedule);
+        } else {
+          currentSchedule = emptySchedule();
+          renderSchedule(currentSchedule);
+        }
+
+        plannerStatus.innerHTML = 'Saved data loaded.';
+        return true;
+      } catch (err) {
+        plannerStatus.innerHTML = 'Could not load saved data.';
+        return false;
+      }
+    }
+
+    function clearPlannerSavedData() {
+      try { localStorage.removeItem(PLANNER_STORAGE_KEY); } catch (err) {}
+    }
+
+    function renderDeptInputs(list) {
+      deptList.innerHTML = '';
+      list.forEach((name, index) => {
+        const row = document.createElement('div');
+        row.className = 'dept-row';
+        row.innerHTML = `
+          <input class="planner-input" type="text" value="${escapeHtml(name)}" data-index="${index}" placeholder="Department name" />
+          <button class="btn planner-secondary mini-btn" data-delete="${index}" title="Delete">✕</button>
+        `;
+        deptList.appendChild(row);
+      });
+
+      updatePlannerSummary();
+
+      deptList.querySelectorAll('input').forEach(input => {
+        input.addEventListener('input', () => {
+          updatePlannerSummary();
+          savePlanner('Department list updated and saved.');
+        });
+      });
+
+      deptList.querySelectorAll('button[data-delete]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const names = getPlannerDepartments();
+          names.splice(Number(btn.dataset.delete), 1);
+          renderDeptInputs(names);
+          savePlanner('Department removed and saved.');
+        });
+      });
+    }
+
+    function renderSchedule(schedule = null) {
+      scheduleGrid.innerHTML = '';
+      plannerAllDays.forEach(day => {
+        const audits = schedule ? (schedule[day.name] || []) : [];
+        const card = document.createElement('div');
+        card.className = 'day-card';
+        card.innerHTML = `
+          <div class="day-head">
+            <h3>${day.name}</h3>
+            <div class="count-pill">${audits.length} audits${day.manualOnly ? ' • manual' : ''}</div>
+          </div>
+          <ul class="audit-list" data-day="${day.name}"></ul>
+        `;
+        scheduleGrid.appendChild(card);
+
+        const list = card.querySelector('.audit-list');
+        if (!audits.length) {
+          const placeholder = document.createElement('li');
+          placeholder.className = 'empty-slot';
+          placeholder.textContent = getPlannerPlaceholderText(day.name);
+          placeholder.draggable = false;
+          list.appendChild(placeholder);
+        } else {
+          audits.forEach(item => {
+            const li = createPlannerAuditItem(item);
+            list.appendChild(li);
+          });
+        }
+
+        attachDropZoneEvents(list);
+      });
+    }
+
+    function createPlannerAuditItem(item) {
+      const li = document.createElement('li');
+      li.className = 'audit-item';
+
+      const handle = document.createElement('div');
+      handle.className = 'drag-handle';
+      handle.textContent = item;
+      handle.draggable = true;
+      attachDragEvents(handle, li);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'remove-btn';
+      removeBtn.textContent = 'X';
+      removeBtn.title = 'Move to Unscheduled';
+      removeBtn.addEventListener('click', () => moveAuditToUnscheduled(li));
+
+      li.appendChild(handle);
+      li.appendChild(removeBtn);
+      return li;
+    }
+
+    function attachDragEvents(handle, li) {
+      handle.addEventListener('dragstart', () => {
+        draggedItem = li;
+        li.classList.add('dragging');
+      });
+
+      handle.addEventListener('dragend', () => {
+        li.classList.remove('dragging');
+        document.querySelectorAll('.audit-list').forEach(list => list.classList.remove('drop-target'));
+        draggedItem = null;
+        syncScheduleFromDom();
+      });
+    }
+
+    function attachDropZoneEvents(list) {
+      list.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        list.classList.add('drop-target');
+      });
+
+      list.addEventListener('dragleave', () => {
+        list.classList.remove('drop-target');
+      });
+
+      list.addEventListener('drop', (e) => {
+        e.preventDefault();
+        list.classList.remove('drop-target');
+        if (!draggedItem) return;
+
+        list.querySelectorAll('.empty-slot').forEach(el => el.remove());
+
+        const afterElement = getDragAfterElement(list, e.clientY);
+        if (afterElement == null) {
+          list.appendChild(draggedItem);
+        } else {
+          list.insertBefore(draggedItem, afterElement);
+        }
+      });
+    }
+
+    function getDragAfterElement(container, y) {
+      const draggableElements = [...container.querySelectorAll('.audit-item:not(.dragging)')];
+
+      return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closest.offset) {
+          return { offset: offset, element: child };
+        } else {
+          return closest;
+        }
+      }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    function moveAuditToUnscheduled(li) {
+      const unscheduledList = document.querySelector('.audit-list[data-day="Unscheduled"]');
+      if (!unscheduledList) return;
+
+      unscheduledList.querySelectorAll('.empty-slot').forEach(el => el.remove());
+      unscheduledList.appendChild(li);
+      syncScheduleFromDom();
+      plannerStatus.innerHTML = 'Audit moved to Unscheduled. Drag it back onto a day whenever you want.';
+    }
+
+    function getPlannerPlaceholderText(day) {
+      return day === 'Friday'
+        ? 'Maintenance starts here. Drag other departments here if you need Friday too'
+        : day === 'Unscheduled'
+          ? 'Removed audits land here'
+          : 'No audits loaded';
+    }
+
+    function syncScheduleFromDom() {
+      const updated = emptySchedule();
+
+      document.querySelectorAll('.audit-list').forEach(list => {
+        const day = list.dataset.day;
+        list.querySelectorAll('.empty-slot').forEach(el => el.remove());
+
+        updated[day] = [...list.querySelectorAll('.audit-item .drag-handle')].map(el => el.textContent);
+
+        if (updated[day].length === 0) {
+          const placeholder = document.createElement('li');
+          placeholder.className = 'empty-slot';
+          placeholder.textContent = getPlannerPlaceholderText(day);
+          placeholder.draggable = false;
+          list.appendChild(placeholder);
+        }
+      });
+
+      currentSchedule = updated;
+      refreshPlannerCounts();
+      savePlanner('Manual changes applied and saved.');
+    }
+
+    function refreshPlannerCounts() {
+      document.querySelectorAll('.day-card').forEach(card => {
+        const day = card.querySelector('.audit-list').dataset.day;
+        const count = currentSchedule && currentSchedule[day] ? currentSchedule[day].length : 0;
+        const isManual = day === 'Friday' || day === 'Unscheduled';
+        card.querySelector('.count-pill').textContent = `${count} audits${isManual ? ' • manual' : ''}`;
+      });
+    }
+
+    function generateWeeklyPlan() {
+      const departments = getPlannerDepartments();
+
+      if (departments.length !== 12) {
+        plannerStatus.innerHTML = 'This version expects 12 departments. Maintenance is always scheduled on Friday first, then everything can still be moved manually.';
+        currentSchedule = emptySchedule();
+        renderSchedule(currentSchedule);
+        return null;
+      }
+
+      const schedule = emptySchedule();
+      const maintenanceName = departments.find(d => d.trim().toLowerCase() === 'maintenance');
+      const nonMaintenance = departments.filter(d => d !== maintenanceName);
+      const deptOrder = shuffle(nonMaintenance);
+
+      const groupMW = deptOrder.slice(0, 5);
+      const groupMTh = deptOrder.slice(5, 6);
+      const groupTuTh = deptOrder.slice(6, 11);
+
+      groupMW.forEach(dept => {
+        schedule['Monday'].push(dept);
+        schedule['Wednesday'].push(dept);
+      });
+
+      groupMTh.forEach(dept => {
+        schedule['Monday'].push(dept);
+        schedule['Thursday'].push(dept);
+      });
+
+      groupTuTh.forEach(dept => {
+        schedule['Tuesday'].push(dept);
+        schedule['Thursday'].push(dept);
+      });
+
+      plannerAutoDays.forEach(day => {
+        schedule[day.name] = shuffle(schedule[day.name]);
+      });
+
+      if (maintenanceName) {
+        schedule['Friday'].push(maintenanceName);
+      }
+
+      currentSchedule = schedule;
+      renderSchedule(currentSchedule);
+      savePlanner('Weekly plan generated and saved. Maintenance starts on Friday by default, but you can drag it anywhere if needed.');
+      return schedule;
+    }
+
+    function exportPlannerToExcel() {
+      const rows = [];
+      const orderedDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Unscheduled'];
+
+      orderedDays.forEach(day => {
+        const audits = (currentSchedule && currentSchedule[day]) ? currentSchedule[day] : [];
+        if (audits.length === 0) {
+          rows.push({ Day: day, Department: '', Status: day === 'Unscheduled' ? 'Removed from week' : 'No audits scheduled' });
+        } else {
+          audits.forEach((dept, index) => {
+            rows.push({
+              Day: day,
+              Department: dept,
+              Status: day === 'Unscheduled' ? 'Removed from week' : 'Scheduled',
+              SortOrder: index + 1
+            });
+          });
+        }
+      });
+
+      let csv = 'Day,Department,Status,SortOrder\n';
+      rows.forEach(row => {
+        const values = [
+          row.Day ?? '',
+          row.Department ?? '',
+          row.Status ?? '',
+          row.SortOrder ?? ''
+        ].map(value => `"${String(value).replace(/"/g, '""')}"`);
+        csv += values.join(',') + '\n';
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Audit_Week_Gameplan_${today}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      plannerStatus.innerHTML = 'Export complete. The CSV file will open in Excel.';
+    }
+
+    function clearPlannerEverything() {
+      currentSchedule = emptySchedule();
+      renderSchedule(currentSchedule);
+      clearPlannerSavedData();
+      plannerStatus.innerHTML = 'Schedule cleared and saved data removed.';
+    }
+
+    function resetPlannerDefaults() {
+      renderDeptInputs(plannerDefaultDepartments);
+      currentSchedule = emptySchedule();
+      renderSchedule(currentSchedule);
+      savePlanner('Department list reset to defaults, including Maintenance on the roster.');
+    }
+
+    function addPlannerDepartment() {
+      const names = getPlannerDepartments();
+      names.push(`Department ${names.length + 1}`);
+      renderDeptInputs(names);
+      savePlanner('Department added and saved.');
+    }
+
+    function removePlannerDepartment() {
+      const names = getPlannerDepartments();
+      names.pop();
+      renderDeptInputs(names);
+      savePlanner('Last department removed and saved.');
+    }
+
+
+    function exportAuditData() {
+      const sortedAudits = [...audits].sort((a, b) => {
+        const dateCompare = new Date(a.date) - new Date(b.date);
+        if (dateCompare !== 0) return dateCompare;
+        return String(a.department).localeCompare(String(b.department));
+      });
+
+      let csv = 'Audit Date,Department,Score,Score Band,Notes\n';
+
+      if (!sortedAudits.length) {
+        csv += '"","","","",""\n';
+      } else {
+        sortedAudits.forEach(audit => {
+          const score = Number(audit.score);
+          const band = score >= 90 ? 'Green' : score >= 80 ? 'Yellow' : 'Red';
+          const values = [
+            audit.date ?? '',
+            audit.department ?? '',
+            Number.isFinite(score) ? score : '',
+            band,
+            audit.notes ?? ''
+          ].map(value => `"${String(value).replace(/"/g, '""')}"`);
+          csv += values.join(',') + '\n';
+        });
+      }
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const today = new Date().toISOString().slice(0, 10);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Department_Audit_Data_${today}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    function clearAllAuditData() {
+      const password = prompt('Enter password to clear all audit data:');
+      if (password === null) return;
+      if (password !== 'delete') {
+        alert('Wrong password. Audit data was not cleared.');
+        return;
+      }
+      if (!confirm('Password accepted. Clear all audit data? This removes saved audit scores from local storage.')) return;
+      audits = [];
+      saveAudits();
+      renderAll();
+    }
+
+    function loadDemoData() {
+      if (audits.length && !confirm('Demo data will be added to your current audit data. Continue?')) return;
+      const demo = [];
+      const startDate = new Date('2026-03-01T00:00:00');
+      departments.forEach((department, deptIndex) => {
+        for (let i = 0; i < 6; i++) {
+          const date = new Date(startDate);
+          date.setDate(startDate.getDate() + i * 5 + (deptIndex % 4));
+          const base = 74 + ((deptIndex * 3 + i * 4) % 24);
+          const trend = i >= 3 ? (deptIndex % 2 === 0 ? 5 : -2) : 0;
+          const score = Math.max(58, Math.min(100, base + trend));
+          demo.push({
+            id: createId(),
+            department,
+            score,
+            date: date.toISOString().slice(0, 10),
+            notes: i % 2 === 0 ? 'Demo audit entry' : ''
+          });
+        }
+      });
+      audits.push(...demo);
+      audits = sortByDateAsc(audits);
+      saveAudits();
+      renderAll();
+    }
+
+
+    function loadCommunicationEntries() {
+      try {
+        const raw = localStorage.getItem(COMM_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function saveCommunicationEntries() {
+      localStorage.setItem(COMM_STORAGE_KEY, JSON.stringify(communicationEntries));
+    }
+
+    function addCommunicationEntry() {
+      const user = commUser.value;
+      const text = commText.value.trim();
+
+      if (!user) {
+        alert('Select Pablo, James, or Ops before entering a comment.');
+        commUser.focus();
+        return;
+      }
+
+      if (!text) {
+        alert('Enter a comment before saving.');
+        commText.focus();
+        return;
+      }
+
+      const now = new Date();
+      communicationEntries.push({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        user,
+        text,
+        createdAt: now.toISOString()
+      });
+
+      communicationEntries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      saveCommunicationEntries();
+      clearCommunicationDraft();
+      populateCommunicationFilters();
+      renderCommunicationEntries();
+    }
+
+    function clearCommunicationDraft() {
+      commText.value = '';
+    }
+
+    function populateCommunicationFilters() {
+      const daySet = new Set();
+      const weekSet = new Set();
+      const monthSet = new Set();
+      const yearSet = new Set();
+
+      const currentDay = commDayFilter.value || 'all';
+      const currentWeek = commWeekFilter.value || 'all';
+      const currentMonth = commMonthFilter.value || 'all';
+      const currentYear = commYearFilter.value || 'all';
+
+      communicationEntries.forEach(entry => {
+        const d = new Date(entry.createdAt);
+        const dateOnly = d.toISOString().slice(0, 10);
+        daySet.add(dateOnly);
+        weekSet.add(getWeekNumber(dateOnly));
+        monthSet.add(d.getMonth() + 1);
+        yearSet.add(d.getFullYear());
+      });
+
+      commDayFilter.innerHTML = '<option value="all">All Days</option>' +
+        [...daySet].sort((a, b) => new Date(b) - new Date(a)).map(day => {
+          const label = new Date(day + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+          return `<option value="${day}">${label}</option>`;
+        }).join('');
+
+      commWeekFilter.innerHTML = '<option value="all">All Weeks</option>' +
+        [...weekSet].sort((a, b) => a - b).map(w => `<option value="${w}">Week ${w}</option>`).join('');
+
+      commMonthFilter.innerHTML = '<option value="all">All Months</option>' +
+        [...monthSet].sort((a, b) => a - b).map(m => `<option value="${m}">${['January','February','March','April','May','June','July','August','September','October','November','December'][m - 1]}</option>`).join('');
+
+      commYearFilter.innerHTML = '<option value="all">All Years</option>' +
+        [...yearSet].sort((a, b) => b - a).map(y => `<option value="${y}">${y}</option>`).join('');
+
+      commDayFilter.value = [...daySet].includes(currentDay) ? currentDay : 'all';
+      commWeekFilter.value = [...weekSet].map(String).includes(currentWeek) ? currentWeek : 'all';
+      commMonthFilter.value = [...monthSet].map(String).includes(currentMonth) ? currentMonth : 'all';
+      commYearFilter.value = [...yearSet].map(String).includes(currentYear) ? currentYear : 'all';
+    }
+
+    function renderCommunicationEntries() {
+      const dayVal = commDayFilter.value;
+      const weekVal = commWeekFilter.value;
+      const monthVal = commMonthFilter.value;
+      const yearVal = commYearFilter.value;
+
+      const filtered = [...communicationEntries]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .filter(entry => {
+          const d = new Date(entry.createdAt);
+          const dateOnly = d.toISOString().slice(0, 10);
+          return (dayVal === 'all' || dateOnly === dayVal) &&
+                 (weekVal === 'all' || getWeekNumber(dateOnly) == weekVal) &&
+                 (monthVal === 'all' || (d.getMonth() + 1) == monthVal) &&
+                 (yearVal === 'all' || d.getFullYear() == yearVal);
+        });
+
+      if (!filtered.length) {
+        communicationList.innerHTML = `<div class="empty-state">No communication entries found.</div>`;
+        return;
+      }
+
+      communicationList.innerHTML = filtered.map(entry => {
+        const d = new Date(entry.createdAt);
+        const dateLabel = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        const timeLabel = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        return `
+          <div class="comment-card">
+            <div class="comment-head">
+              <div class="comment-user">${escapeHtml(entry.user)}</div>
+              <div class="comment-meta">${dateLabel} • ${timeLabel}</div>
+            </div>
+            <div class="comment-text">${escapeHtml(entry.text)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+
+
+    function excelDateToISO(value) {
+      if (typeof value === 'number') {
+        const date = XLSX.SSF.parse_date_code(value);
+        if (!date) return '';
+        const jsDate = new Date(date.y, date.m - 1, date.d);
+        return jsDate.toISOString().slice(0, 10);
+      }
+      if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.toISOString().slice(0, 10);
+      }
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+      return '';
+    }
+
+    function normalizeImportedDepartment(value) {
+      const raw = String(value || '').trim().toLowerCase();
+      return departments.find(dept => dept.toLowerCase() === raw) || '';
+    }
+
+    function downloadImportTemplate() {
+      const rows = [
+        ['Department', 'Score', 'Audit Date', 'Notes'],
+        ['Whitewood', '92', '2026-04-10', 'Example note'],
+        ['Finishing', '85', '2026-04-10', 'Second example']
+      ];
+      const csv = rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = 'Audit_Import_Example_Format.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    async function importAuditData() {
+      const file = importAuditFile.files[0];
+      if (!file) {
+        alert('Pick an Excel or CSV file first.');
+        return;
+      }
+
+      try {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+        if (!rows.length) {
+          alert('That file did not contain any rows to import.');
+          return;
+        }
+
+        const importedAudits = [];
+        const errors = [];
+
+        rows.forEach((row, index) => {
+          const department = normalizeImportedDepartment(row['Department']);
+          const score = Number(row['Score']);
+          const date = excelDateToISO(row['Audit Date']);
+          const notes = String(row['Notes'] || '').trim();
+
+          if (!department) {
+            errors.push(`Row ${index + 2}: Department is missing or not valid.`);
+            return;
+          }
+          if (Number.isNaN(score) || score < 0 || score > 100) {
+            errors.push(`Row ${index + 2}: Score must be between 0 and 100.`);
+            return;
+          }
+          if (!date) {
+            errors.push(`Row ${index + 2}: Audit Date is invalid.`);
+            return;
+          }
+
+          importedAudits.push({
+            id: createId(),
+            department,
+            score,
+            date,
+            notes
+          });
+        });
+
+        if (errors.length) {
+          alert(`Import stopped because of format issues:\n\n${errors.slice(0, 8).join('\n')}`);
+          return;
+        }
+
+        audits.push(...importedAudits);
+        audits = sortByDateAsc(audits);
+        saveAudits();
+        importAuditFile.value = '';
+        renderAll();
+        switchPage('dashboard');
+        alert(`${importedAudits.length} audit rows imported successfully.`);
+      } catch (err) {
+        console.error(err);
+        alert('Import failed. Make sure the file uses the example format.');
+      }
+    }
+
+    function downloadCanvasAsPng(canvas, filename) {
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = `${filename || 'chart'}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function openChartModal(canvasId, title) {
+      expandedChartType = canvasId;
+      expandedChartTitle = title || 'chart';
+      chartModalTitle.textContent = title || 'Expanded Chart';
+      chartModal.classList.add('active');
+      renderExpandedChart();
+    }
+
+    function closeChartModal() {
+      chartModal.classList.remove('active');
+      expandedChartType = null;
+      expandedChartTitle = '';
+    }
+
+    function renderExpandedChart() {
+      if (!expandedChartType) return;
+
+      if (expandedChartType === 'dashboardBarChart') {
+        const stats = getDepartmentStats();
+        const active = stats.filter(s => s.count > 0).sort((a, b) => b.avg - a.avg);
+        drawBarChartOnCanvas(chartModalCanvas, active, { valueKey: 'avg' });
+        return;
+      }
+
+      if (expandedChartType === 'chartsBarChart') {
+        const stats = getDepartmentStats();
+        const filteredStats = stats.filter(s => visibleDepartments.has(s.department) && s.count > 0).sort((a, b) => b.avg - a.avg);
+        drawBarChartOnCanvas(chartModalCanvas, filteredStats, { valueKey: 'avg' });
+        return;
+      }
+
+      if (expandedChartType === 'trendLineChart') {
+        const stats = getDepartmentStats();
+        const filteredStats = stats.filter(s => visibleDepartments.has(s.department) && s.count > 0);
+        drawLineChartOnCanvas(chartModalCanvas, filteredStats);
+      }
+    }
+
+    function drawBarChartOnCanvas(canvas, data, options = {}) {
+      const ctx = setupCanvas(canvas);
+      if (!ctx) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      if (!data.length) {
+        drawEmptyChart(ctx, width, height, 'No data to chart yet');
+        return;
+      }
+
+      const padding = { top: 30, right: 20, bottom: 110, left: 52 };
+      const chartW = width - padding.left - padding.right;
+      const chartH = height - padding.top - padding.bottom;
+      const maxVal = 100;
+
+      ctx.font = '12px Inter, sans-serif';
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.fillStyle = '#64748b';
+      ctx.lineWidth = 1;
+
+      for (let y = 0; y <= maxVal; y += 20) {
+        const py = padding.top + chartH - (y / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, py);
+        ctx.lineTo(width - padding.right, py);
+        ctx.stroke();
+        ctx.fillText(String(y), 10, py + 4);
+      }
+
+      const barGap = 12;
+      const barWidth = Math.max(26, (chartW - barGap * (data.length - 1)) / data.length);
+
+      data.forEach((item, index) => {
+        const value = item[options.valueKey || 'avg'] || 0;
+        const x = padding.left + index * (barWidth + barGap);
+        const barHeight = (value / maxVal) * chartH;
+        const y = padding.top + chartH - barHeight;
+        const color = getScoreColor(value);
+
+        roundRect(ctx, x, y, barWidth, barHeight, 12, color);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 12px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(value.toFixed(1), x + barWidth / 2, y - 8);
+
+        ctx.save();
+        ctx.translate(x + barWidth / 2, height - 12);
+        ctx.rotate(-Math.PI / 5);
+        ctx.fillStyle = '#334155';
+        ctx.font = '12px Inter, sans-serif';
+        ctx.fillText(item.department, 0, 0);
+        ctx.restore();
+      });
+
+      ctx.textAlign = 'left';
+    }
+
+    function drawLineChartOnCanvas(canvas, departmentStats) {
+      const ctx = setupCanvas(canvas);
+      if (!ctx) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      const visibleData = departmentStats.filter(s => s.count > 0);
+      if (!visibleData.length) {
+        drawEmptyChart(ctx, width, height, 'No departments selected or no data available');
+        return;
+      }
+
+      const allDates = [...new Set(visibleData.flatMap(s => s.audits.map(a => a.date)))].sort();
+      if (!allDates.length) {
+        drawEmptyChart(ctx, width, height, 'No dates available');
+        return;
+      }
+
+      const padding = { top: 56, right: 24, bottom: 62, left: 52 };
+      const chartW = width - padding.left - padding.right;
+      const chartH = height - padding.top - padding.bottom;
+      const maxVal = 100;
+
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.fillStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.font = '12px Inter, sans-serif';
+
+      for (let y = 0; y <= maxVal; y += 20) {
+        const py = padding.top + chartH - (y / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, py);
+        ctx.lineTo(width - padding.right, py);
+        ctx.stroke();
+        ctx.fillText(String(y), 10, py + 4);
+      }
+
+      allDates.forEach((date, index) => {
+        const x = padding.left + (allDates.length === 1 ? chartW / 2 : index * (chartW / (allDates.length - 1)));
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, height - padding.bottom);
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(x, height - 12);
+        ctx.rotate(-Math.PI / 6);
+        ctx.fillStyle = '#475569';
+        ctx.fillText(shortDate(date), 0, 0);
+        ctx.restore();
+      });
+
+      visibleData.forEach((deptStat, deptIndex) => {
+        const auditsByDate = new Map(deptStat.audits.map(a => [a.date, Number(a.score)]));
+        const lineColor = palette(deptIndex);
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        let started = false;
+
+        allDates.forEach((date, index) => {
+          if (!auditsByDate.has(date)) return;
+          const score = auditsByDate.get(date);
+          const x = padding.left + (allDates.length === 1 ? chartW / 2 : index * (chartW / (allDates.length - 1)));
+          const y = padding.top + chartH - (score / maxVal) * chartH;
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+
+        allDates.forEach((date, index) => {
+          if (!auditsByDate.has(date)) return;
+          const score = auditsByDate.get(date);
+          const x = padding.left + (allDates.length === 1 ? chartW / 2 : index * (chartW / (allDates.length - 1)));
+          const y = padding.top + chartH - (score / maxVal) * chartH;
+          ctx.beginPath();
+          ctx.fillStyle = lineColor;
+          ctx.arc(x, y, 5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        });
+      });
+
+      drawLegend(ctx, width, 10, visibleData.map((d, i) => ({ name: d.department, color: palette(i) })));
+    }
+
+
+    function loadGembaEntries() {
+      try {
+        const raw = localStorage.getItem(GEMBA_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function saveGembaEntries() {
+      localStorage.setItem(GEMBA_STORAGE_KEY, JSON.stringify(gembaEntries));
+    }
+
+    function addGembaEntry() {
+      const title = gembaTitle.value.trim();
+      const status = gembaStatus.value;
+      const text = gembaText.value.trim();
+
+      if (!title) {
+        alert('Enter a Gemba title first.');
+        gembaTitle.focus();
+        return;
+      }
+
+      gembaEntries.unshift({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        title,
+        status,
+        text,
+        createdAt: new Date().toISOString(),
+        tasks: []
+      });
+      saveGembaEntries();
+      clearGembaDraft();
+      renderAll();
+      switchPage('gemba');
+    }
+
+    function clearGembaDraft() {
+      gembaTitle.value = '';
+      gembaStatus.value = 'Idea';
+      gembaText.value = '';
+    }
+
+    function getGembaStatusClass(status) {
+      if (status === 'Completed') return 'status-completed';
+      if (status === 'In Progress') return 'status-progress';
+      return 'status-idea';
+    }
+
+    function deleteGemba(id) {
+      const password = prompt('Enter password to delete this Gemba:');
+      if (password === null) return;
+      if (password !== 'delete') {
+        alert('Wrong password. Gemba was not deleted.');
+        return;
+      }
+      if (!confirm('Password accepted. Delete this Gemba?')) return;
+
+      gembaEntries = gembaEntries.filter(entry => entry.id !== id);
+      saveGembaEntries();
+      renderAll();
+    }
+
+    function addTaskToGemba(id) {
+      const input = document.querySelector(`input[data-gemba-task-input="${id}"]`);
+      if (!input) return;
+      const value = input.value.trim();
+      if (!value) return;
+
+      const entry = gembaEntries.find(item => item.id === id);
+      if (!entry) return;
+      entry.tasks.push({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        text: value,
+        completed: false
+      });
+      input.value = '';
+      saveGembaEntries();
+      renderGembaEntries();
+      updateGembaWidget();
+    }
+
+    function toggleGembaTask(gembaId, taskId) {
+      const entry = gembaEntries.find(item => item.id === gembaId);
+      if (!entry) return;
+      const task = entry.tasks.find(t => t.id === taskId);
+      if (!task) return;
+      task.completed = !task.completed;
+      saveGembaEntries();
+      renderGembaEntries();
+    }
+
+    function deleteGembaTask(gembaId, taskId) {
+      const entry = gembaEntries.find(item => item.id === gembaId);
+      if (!entry) return;
+      entry.tasks = entry.tasks.filter(t => t.id !== taskId);
+      saveGembaEntries();
+      renderGembaEntries();
+      updateGembaWidget();
+    }
+
+    function setGembaStatus(id, status) {
+      const entry = gembaEntries.find(item => item.id === id);
+      if (!entry) return;
+      entry.status = status;
+      saveGembaEntries();
+      renderAll();
+    }
+
+    function updateGembaWidget() {
+      const count = gembaEntries.filter(entry => entry.status === 'In Progress').length;
+      const el = document.getElementById('statGembaInProgress');
+      if (el) el.textContent = count;
+    }
+
+    function renderGembaEntries() {
+      const filterStatus = gembaStatusFilter.value || 'all';
+      const search = (gembaSearch.value || '').trim().toLowerCase();
+
+      const filtered = gembaEntries.filter(entry => {
+        const matchesStatus = filterStatus === 'all' || entry.status === filterStatus;
+        const haystack = [entry.title, entry.text, ...(entry.tasks || []).map(t => t.text)].join(' ').toLowerCase();
+        return matchesStatus && (!search || haystack.includes(search));
+      });
+
+      if (!filtered.length) {
+        gembaList.innerHTML = '<div class="empty-state">No Gemba entries found.</div>';
+        return;
+      }
+
+      gembaList.innerHTML = filtered.map(entry => {
+        const created = new Date(entry.createdAt);
+        const dateLabel = created.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+        const timeLabel = created.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        const tasks = entry.tasks || [];
+        return `
+          <div class="gemba-card">
+            <div class="gemba-head">
+              <div>
+                <div class="gemba-title">${escapeHtml(entry.title)}</div>
+                <div class="gemba-meta">${dateLabel} • ${timeLabel}</div>
+              </div>
+              <div class="status-pill ${getGembaStatusClass(entry.status)}">${escapeHtml(entry.status)}</div>
+            </div>
+
+            <div class="gemba-description">${escapeHtml(entry.text || '—')}</div>
+
+            <div class="field" style="margin-bottom:8px;">
+              <label>Status</label>
+              <select data-gemba-status="${entry.id}" class="gemba-status-dropdown">
+                <option value="Idea" ${entry.status === 'Idea' ? 'selected' : ''}>Idea</option>
+                <option value="In Progress" ${entry.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                <option value="Completed" ${entry.status === 'Completed' ? 'selected' : ''}>Completed</option>
+              </select>
+            </div>
+
+            <div class="gemba-meta" style="margin-bottom:6px; font-weight:700;">Tasks</div>
+            <div class="task-list">
+              ${tasks.length ? tasks.map(task => `
+                <div class="task-row">
+                  <input type="checkbox" data-gemba-task-check="${entry.id}::${task.id}" ${task.completed ? 'checked' : ''} />
+                  <div class="task-text ${task.completed ? 'done' : ''}">${escapeHtml(task.text)}</div>
+                  <div class="status-pill ${task.completed ? 'status-completed' : 'status-progress'}">${task.completed ? 'Done' : 'Open'}</div>
+                  <button class="tiny-btn tiny-delete" type="button" data-gemba-task-delete="${entry.id}::${task.id}">Delete</button>
+                </div>
+              `).join('') : '<div class="empty-state" style="padding:14px;">No tasks yet.</div>'}
+            </div>
+
+            <div class="task-add-row">
+              <input type="text" data-gemba-task-input="${entry.id}" placeholder="+ Add task..." />
+              <button class="btn btn-secondary" type="button" data-gemba-task-add="${entry.id}">Add Task</button>
+            </div>
+
+            <div class="task-actions">
+              <button class="btn btn-danger" type="button" data-gemba-delete="${entry.id}">Delete Gemba</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      gembaList.querySelectorAll('[data-gemba-delete]').forEach(btn => {
+        btn.addEventListener('click', () => deleteGemba(btn.dataset.gembaDelete));
+      });
+      gembaList.querySelectorAll('[data-gemba-task-add]').forEach(btn => {
+        btn.addEventListener('click', () => addTaskToGemba(btn.dataset.gembaTaskAdd));
+      });
+      gembaList.querySelectorAll('[data-gemba-task-check]').forEach(input => {
+        input.addEventListener('change', () => {
+          const [gembaId, taskId] = input.dataset.gembaTaskCheck.split('::');
+          toggleGembaTask(gembaId, taskId);
+        });
+      });
+      gembaList.querySelectorAll('[data-gemba-task-delete]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const [gembaId, taskId] = btn.dataset.gembaTaskDelete.split('::');
+          deleteGembaTask(gembaId, taskId);
+        });
+      });
+      gembaList.addEventListener('change', (e) => {
+        if (e.target.matches('[data-gemba-status]')) {
+          const id = e.target.dataset.gembaStatus;
+          setGembaStatus(id, e.target.value);
+        }
+      });
+
+      gembaList.querySelectorAll('[data-gemba-status]').forEach(sel => {
+        sel.addEventListener('change', () => setGembaStatus(sel.dataset.gembaStatus, sel.value));
+      });
+    }
+
+    function renderAll() {
+      populateHistoryFilter();
+      populateCommunicationFilters();
+      renderDashboard();
+      renderHistory();
+      renderCharts();
+      renderCommunicationEntries();
+      renderGembaEntries();
+      updateGembaWidget();
+      if (auditRowsEl.children.length === 0) addAuditRow();
+      refreshPlannerCounts();
+      updatePlannerSummary();
+    }
+
+    if (!loadPlanner()) {
+      renderDeptInputs(plannerDefaultDepartments);
+      currentSchedule = emptySchedule();
+      renderSchedule(currentSchedule);
+    }
+
+    renderAll();
+  </script>
+
+  <div class="modal-backdrop" id="chartModal">
+    <div class="modal-card">
+      <div class="modal-top">
+        <h3 id="chartModalTitle" style="margin:0;">Expanded Chart</h3>
+        <div class="chart-tools">
+          <button class="icon-btn" id="modalDownloadBtn" type="button">Download PNG</button>
+          <button class="icon-btn" id="closeChartModalBtn" type="button">Close</button>
+        </div>
+      </div>
+      <div class="modal-chart-box">
+        <canvas id="chartModalCanvas"></canvas>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
