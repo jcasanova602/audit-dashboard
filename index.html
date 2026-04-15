@@ -1143,6 +1143,17 @@
                         <div class="chart-box"><canvas id="dashboardBarChart"></canvas></div>
                         <div class="subtle">Bars are traffic-light colored by score range.</div>
                       </div>
+                      <div class="card">
+                        <div class="chart-card-head">
+                          <h3>Department Weekly Score Comparison This Week</h3>
+                          <div class="field" style="min-width:210px;">
+                            <label for="dashboardWeekSelect">Calendar Week</label>
+                            <select id="dashboardWeekSelect"></select>
+                          </div>
+                        </div>
+                        <div class="chart-box"><canvas id="dashboardWeeklyBarChart"></canvas></div>
+                        <div class="subtle">Shows average score by department for the selected calendar week.</div>
+                      </div>
             
                       <div class="grid rank-grid">
                         <div class="card">
@@ -1348,6 +1359,19 @@
             </div>
             <div class="chart-box"><canvas id="chartsBarChart"></canvas></div>
           </div>
+          <div class="card">
+            <div class="chart-card-head">
+              <h3>Department Weekly Score Comparison This Week</h3>
+              <div class="chart-tools">
+                <div class="field" style="min-width:210px;">
+                  <label for="chartsWeekSelect">Calendar Week</label>
+                  <select id="chartsWeekSelect"></select>
+                </div>
+                <button class="icon-btn chart-download-btn" type="button" data-canvas="chartsWeeklyBarChart" data-filename="department_weekly_score_comparison">⤓</button>
+              </div>
+            </div>
+            <div class="chart-box"><canvas id="chartsWeeklyBarChart"></canvas></div>
+          </div>
         </div>
       </section>
 
@@ -1503,6 +1527,9 @@
     const gembaStatusFilter = document.getElementById('gembaStatusFilter');
     const gembaSearch = document.getElementById('gembaSearch');
     const gembaList = document.getElementById('gembaList');
+    const chartChips = document.getElementById('chartChips');
+    const dashboardWeekSelect = document.getElementById('dashboardWeekSelect');
+    const chartsWeekSelect = document.getElementById('chartsWeekSelect');
     const chartModal = document.getElementById('chartModal');
     const chartModalTitle = document.getElementById('chartModalTitle');
     const modalDownloadBtn = document.getElementById('modalDownloadBtn');
@@ -1512,6 +1539,8 @@
 
     let expandedChartType = null;
     let expandedChartTitle = '';
+    let selectedDashboardWeek = 'current';
+    let selectedChartsWeek = 'current';
 
     document.getElementById('addRowBtn').addEventListener('click', () => addAuditRow());
     document.getElementById('saveAuditsBtn').addEventListener('click', saveAuditRows);
@@ -1562,6 +1591,18 @@
     commYearFilter.addEventListener('change', renderCommunicationEntries);
     gembaStatusFilter.addEventListener('change', renderGembaEntries);
     gembaSearch.addEventListener('input', renderGembaEntries);
+    if (dashboardWeekSelect) {
+      dashboardWeekSelect.addEventListener('change', () => {
+        selectedDashboardWeek = dashboardWeekSelect.value || 'current';
+        renderDashboard();
+      });
+    }
+    if (chartsWeekSelect) {
+      chartsWeekSelect.addEventListener('change', () => {
+        selectedChartsWeek = chartsWeekSelect.value || 'current';
+        renderCharts();
+      });
+    }
     window.addEventListener('resize', renderAll);
 
     navButtons.forEach(btn => {
@@ -1818,6 +1859,102 @@
       });
     }
 
+
+    function normalizeAuditDate(dateValue) {
+      if (!dateValue) return '';
+      if (typeof dateValue === 'string') {
+        const trimmed = dateValue.trim();
+        const isoMatch = trimmed.match(/^\d{4}-\d{2}-\d{2}/);
+        if (isoMatch) return isoMatch[0];
+      }
+      const d = new Date(dateValue);
+      if (Number.isNaN(d.getTime())) return '';
+      return d.toISOString().slice(0, 10);
+    }
+
+    function getAuditYear(dateValue) {
+      const normalized = normalizeAuditDate(dateValue);
+      return normalized ? Number(normalized.slice(0, 4)) : null;
+    }
+
+    function getAuditWeek(dateValue) {
+      const normalized = normalizeAuditDate(dateValue);
+      return normalized ? getWeekNumber(normalized) : null;
+    }
+
+    function getAvailableYearWeeks(sourceAudits = audits) {
+      const set = new Set();
+      sourceAudits.forEach(audit => {
+        const normalized = normalizeAuditDate(audit.date);
+        if (!normalized) return;
+        const year = getAuditYear(normalized);
+        const week = getAuditWeek(normalized);
+        if (!year || !week) return;
+        set.add(`${year}-W${String(week).padStart(2, '0')}`);
+      });
+      return [...set].sort((a, b) => b.localeCompare(a));
+    }
+
+    function formatYearWeekLabel(yearWeek) {
+      if (yearWeek === 'current') return 'Current Week';
+      const [year, wk] = yearWeek.split('-W');
+      return `Week ${Number(wk)} (${year})`;
+    }
+
+    function populateWeekSelect(selectEl, availableYearWeeks, selectedValue, preferLatest = false) {
+      let options = ['current', ...availableYearWeeks];
+      if (preferLatest && availableYearWeeks.length) {
+        options = [...availableYearWeeks];
+      }
+      selectEl.innerHTML = options.map(value =>
+        `<option value="${value}" ${value === selectedValue ? 'selected' : ''}>${formatYearWeekLabel(value)}</option>`
+      ).join('');
+      if (!options.includes(selectedValue)) {
+        selectEl.value = preferLatest && availableYearWeeks.length ? availableYearWeeks[0] : 'current';
+      }
+    }
+
+    function filterAuditsByYearWeek(sourceAudits, yearWeekValue) {
+      let targetYear, targetWeek;
+      if (yearWeekValue === 'current') {
+        const today = new Date();
+        targetYear = today.getFullYear();
+        targetWeek = getWeekNumber(today.toISOString().slice(0, 10));
+      } else {
+        const [year, wk] = yearWeekValue.split('-W');
+        targetYear = Number(year);
+        targetWeek = Number(wk);
+      }
+
+      return sourceAudits.filter(audit => {
+        const year = getAuditYear(audit.date);
+        const week = getAuditWeek(audit.date);
+        if (!year || !week) return false;
+        return year === targetYear && week === targetWeek;
+      });
+    }
+
+    function getWeeklyDepartmentStats(sourceAudits, departmentPool) {
+      const grouped = new Map();
+      departmentPool.forEach(dept => grouped.set(dept, []));
+      sourceAudits.forEach(audit => {
+        if (!grouped.has(audit.department)) grouped.set(audit.department, []);
+        grouped.get(audit.department).push(audit);
+      });
+
+      return departmentPool.map(department => {
+        const deptAudits = sortByDateAsc(grouped.get(department) || []);
+        const scores = deptAudits.map(a => Number(a.score));
+        return {
+          department,
+          avg: average(scores),
+          count: scores.length,
+          audits: deptAudits
+        };
+      }).filter(item => item.count > 0);
+    }
+
+
     function renderDashboard() {
       const stats = getDepartmentStats();
       const active = stats.filter(s => s.count > 0);
@@ -1825,14 +1962,26 @@
       const overallAvg = average(allScores);
       const topScore = allScores.length ? Math.max(...allScores) : 0;
 
-      const today = new Date();
-      const currentWeek = getWeekNumber(today.toISOString().slice(0,10));
-      const currentYear = today.getFullYear();
-      const weekAudits = audits.filter(a => {
-        return getWeekNumber(a.date) == currentWeek &&
-               new Date(a.date).getFullYear() == currentYear;
-      });
-      const weekAvg = average(weekAudits.map(a => Number(a.score)));
+      const currentWeekAudits = filterAuditsByYearWeek(audits, 'current');
+      const weekAvg = average(currentWeekAudits.map(a => Number(a.score)));
+
+      const availableYearWeeks = getAvailableYearWeeks(audits);
+      if (!selectedDashboardWeek || (selectedDashboardWeek !== 'current' && !availableYearWeeks.includes(selectedDashboardWeek))) {
+        selectedDashboardWeek = currentWeekAudits.length ? 'current' : (availableYearWeeks[0] || 'current');
+      }
+
+      if (dashboardWeekSelect) {
+        populateWeekSelect(dashboardWeekSelect, availableYearWeeks, selectedDashboardWeek, false);
+        selectedDashboardWeek = dashboardWeekSelect.value || selectedDashboardWeek || 'current';
+      }
+
+      let weeklyAudits = filterAuditsByYearWeek(audits, selectedDashboardWeek);
+      if (!weeklyAudits.length && availableYearWeeks.length) {
+        selectedDashboardWeek = availableYearWeeks[0];
+        if (dashboardWeekSelect) dashboardWeekSelect.value = selectedDashboardWeek;
+        weeklyAudits = filterAuditsByYearWeek(audits, selectedDashboardWeek);
+      }
+      const weeklyStats = getWeeklyDepartmentStats(weeklyAudits, departments).sort((a, b) => b.avg - a.avg);
 
       function getLightColor(score) {
         if (score >= 90) return '#10b981';
@@ -1870,6 +2019,7 @@
       renderRankingList(document.getElementById('improvedList'), byImproved.slice(0, 3), 'improved');
 
       drawBarChart('dashboardBarChart', active.sort((a, b) => b.avg - a.avg), { valueKey: 'avg' });
+      drawBarChart('dashboardWeeklyBarChart', weeklyStats, { valueKey: 'avg' });
     }
 
     function renderRankingList(container, list, mode) {
@@ -2055,8 +2205,37 @@
       renderAll();
     }
 
+
+    function getFilteredChartAudits() {
+      return audits.filter(audit => visibleDepartments.has(audit.department));
+    }
+
+    function getFilteredChartStats() {
+      const filteredAudits = getFilteredChartAudits();
+      const grouped = new Map();
+      departments.forEach(dept => grouped.set(dept, []));
+      filteredAudits.forEach(audit => {
+        if (!grouped.has(audit.department)) grouped.set(audit.department, []);
+        grouped.get(audit.department).push(audit);
+      });
+
+      return departments
+        .filter(department => visibleDepartments.has(department))
+        .map(department => {
+          const deptAudits = sortByDateAsc(grouped.get(department) || []);
+          const scores = deptAudits.map(a => Number(a.score));
+          return {
+            department,
+            avg: average(scores),
+            count: scores.length,
+            audits: deptAudits
+          };
+        });
+    }
+
     function renderChartFilters() {
-      const wrap = document.getElementById('chartChips');
+      const wrap = chartChips;
+      if (!wrap) return;
       wrap.innerHTML = '';
 
       const allChip = document.createElement('button');
@@ -2083,10 +2262,41 @@
 
     function renderCharts() {
       renderChartFilters();
-      const stats = getDepartmentStats();
-      const filteredStats = stats.filter(s => visibleDepartments.has(s.department) && s.count > 0);
-      drawBarChart('chartsBarChart', filteredStats.sort((a, b) => b.avg - a.avg), { valueKey: 'avg' });
+
+      const filteredAudits = getFilteredChartAudits();
+      const filteredStats = getFilteredChartStats().filter(s => s.count > 0);
+
+      const availableYearWeeks = getAvailableYearWeeks(audits);
+      const currentWeekHasData = filterAuditsByYearWeek(filteredAudits.length ? filteredAudits : audits, 'current').length > 0;
+
+      if (!selectedChartsWeek || (selectedChartsWeek === 'current' && !currentWeekHasData)) {
+        selectedChartsWeek = currentWeekHasData ? 'current' : (availableYearWeeks[0] || 'current');
+      } else if (selectedChartsWeek !== 'current' && !availableYearWeeks.includes(selectedChartsWeek)) {
+        selectedChartsWeek = availableYearWeeks[0] || 'current';
+      }
+
+      if (chartsWeekSelect) {
+        populateWeekSelect(chartsWeekSelect, availableYearWeeks, selectedChartsWeek, false);
+        chartsWeekSelect.value = selectedChartsWeek;
+      }
+
+      let weeklyAudits = filterAuditsByYearWeek(filteredAudits, selectedChartsWeek);
+
+      if (!weeklyAudits.length && availableYearWeeks.length) {
+        const fallbackWeek = availableYearWeeks[0];
+        selectedChartsWeek = fallbackWeek;
+        if (chartsWeekSelect) chartsWeekSelect.value = fallbackWeek;
+        weeklyAudits = filterAuditsByYearWeek(filteredAudits, fallbackWeek);
+      }
+
+      const weeklyStats = getWeeklyDepartmentStats(
+        weeklyAudits,
+        departments.filter(dept => visibleDepartments.has(dept))
+      ).filter(s => s.count > 0).sort((a, b) => b.avg - a.avg);
+
+      drawBarChart('chartsBarChart', [...filteredStats].sort((a, b) => b.avg - a.avg), { valueKey: 'avg' });
       drawLineChart('trendLineChart', filteredStats);
+      drawBarChart('chartsWeeklyBarChart', weeklyStats, { valueKey: 'avg' });
     }
 
     function drawBarChart(canvasId, data, options = {}) {
