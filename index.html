@@ -1711,6 +1711,7 @@
     function persistLocalOnly() {
       localStorage.setItem(AUDIT_STORAGE_KEY, JSON.stringify(audits));
       localStorage.setItem(COMM_STORAGE_KEY, JSON.stringify(communicationEntries));
+      saveReplyBackupMap();
       localStorage.setItem(GEMBA_STORAGE_KEY, JSON.stringify(gembaEntries));
       const plannerPayload = {
         departments: getPlannerDepartments(),
@@ -1763,18 +1764,14 @@
         }
 
         if (Array.isArray(result.communication)) {
-          communicationEntries = result.communication.map(item => ({
+          communicationEntries = mergeReplyBackup(result.communication.map(item => ({
             id: item.id || createId(),
             user: item.user || '',
             text: item.text || '',
             createdAt: item.createdAt || new Date().toISOString(),
-            replies: Array.isArray(item.replies) ? item.replies.map(reply => ({
-              id: reply.id || createId(),
-              user: reply.user || '',
-              text: reply.text || '',
-              createdAt: reply.createdAt || new Date().toISOString()
-            })) : []
-          }));
+            replies: normalizeReplies(item.replies)
+          })));
+          saveReplyBackupMap();
         }
 
         if (Array.isArray(result.gemba)) {
@@ -3284,22 +3281,70 @@
     }
 
 
+    function loadReplyBackupMap() {
+      try {
+        const raw = localStorage.getItem(COMM_REPLIES_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch (err) {
+        return {};
+      }
+    }
+
+    function saveReplyBackupMap() {
+      try {
+        const backup = {};
+        communicationEntries.forEach(entry => {
+          if (Array.isArray(entry.replies) && entry.replies.length) {
+            backup[entry.id] = entry.replies.map(reply => ({
+              id: reply.id || createId(),
+              user: reply.user || '',
+              text: reply.text || '',
+              createdAt: reply.createdAt || new Date().toISOString()
+            }));
+          }
+        });
+        localStorage.setItem(COMM_REPLIES_STORAGE_KEY, JSON.stringify(backup));
+      } catch (err) {
+        console.error('Could not save reply backup:', err);
+      }
+    }
+
+    function normalizeReplies(replies) {
+      return Array.isArray(replies) ? replies.map(reply => ({
+        id: reply.id || createId(),
+        user: reply.user || '',
+        text: reply.text || '',
+        createdAt: reply.createdAt || new Date().toISOString()
+      })) : [];
+    }
+
+    function mergeReplyBackup(entries) {
+      const backupMap = loadReplyBackupMap();
+      return (Array.isArray(entries) ? entries : []).map(entry => {
+        const liveReplies = normalizeReplies(entry.replies);
+        const backupReplies = normalizeReplies(backupMap[entry.id]);
+        const mergedMap = new Map();
+        [...backupReplies, ...liveReplies].forEach(reply => {
+          const key = reply.id || `${reply.user}|${reply.text}|${reply.createdAt}`;
+          mergedMap.set(key, reply);
+        });
+        return { ...entry, replies: [...mergedMap.values()].sort((a,b)=>(parseAppDate(a.createdAt)?.getTime()||0)-(parseAppDate(b.createdAt)?.getTime()||0)) };
+      });
+    }
+
     function loadCommunicationEntries() {
       try {
         const raw = localStorage.getItem(COMM_STORAGE_KEY);
         const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed.map(entry => ({
+        const entries = Array.isArray(parsed) ? parsed.map(entry => ({
           id: entry.id || createId(),
           user: entry.user || '',
           text: entry.text || '',
           createdAt: entry.createdAt || new Date().toISOString(),
-          replies: Array.isArray(entry.replies) ? entry.replies.map(reply => ({
-            id: reply.id || createId(),
-            user: reply.user || '',
-            text: reply.text || '',
-            createdAt: reply.createdAt || new Date().toISOString()
-          })) : []
+          replies: normalizeReplies(entry.replies)
         })) : [];
+        return mergeReplyBackup(entries);
       } catch (err) {
         return [];
       }
@@ -3307,6 +3352,7 @@
 
     function saveCommunicationEntries() {
       localStorage.setItem(COMM_STORAGE_KEY, JSON.stringify(communicationEntries));
+      saveReplyBackupMap();
       pushCloudData();
     }
 
@@ -3378,6 +3424,8 @@
       });
 
       saveCommunicationEntries();
+      userSelect.value = '';
+      textInput.value = '';
       renderCommunicationEntries();
     }
 
