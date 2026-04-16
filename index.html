@@ -710,6 +710,49 @@
       cursor: pointer;
     }
 
+    .reply-thread {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--slate-200);
+      display: grid;
+      gap: 10px;
+    }
+
+    .reply-card {
+      margin-left: 18px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid var(--slate-200);
+    }
+
+    .reply-form {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: white;
+      border: 1px dashed var(--slate-300);
+      display: grid;
+      gap: 10px;
+    }
+
+    .reply-form-grid {
+      display: grid;
+      grid-template-columns: 160px 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .reply-input {
+      min-height: 44px;
+    }
+
+    .reply-empty {
+      color: var(--slate-500);
+      font-size: 0.9rem;
+      font-style: italic;
+    }
+
     .comment-form {
       display: grid;
       gap: 14px;
@@ -992,6 +1035,7 @@
       .audit-row { grid-template-columns: 1fr; }
       .button-row .btn, .gameplan-controls .btn { flex: 1 1 auto; }
       .schedule-grid { grid-template-columns: 1fr; }
+      .reply-form-grid { grid-template-columns: 1fr; }
     }
   
     .dashboard-main .card h3,
@@ -1361,6 +1405,26 @@
           </div>
           <div class="card">
             <div class="chart-card-head">
+              <h3>Combined Avg Audit Score Trend</h3>
+              <div class="chart-tools">
+                <button class="icon-btn chart-download-btn" type="button" data-canvas="combinedAvgLineChart" data-filename="combined_average_audit_score_trend">⤓</button>
+              </div>
+            </div>
+            <div class="chart-box"><canvas id="combinedAvgLineChart"></canvas></div>
+            <div class="subtle">Average of all visible audit scores by audit date so you can see whether the overall trend is moving up or down.</div>
+          </div>
+          <div class="card">
+            <div class="chart-card-head">
+              <h3>Combined Avg Audit Score Trend by Week</h3>
+              <div class="chart-tools">
+                <button class="icon-btn chart-download-btn" type="button" data-canvas="combinedWeeklyAvgLineChart" data-filename="combined_weekly_average_audit_score_trend">⤓</button>
+              </div>
+            </div>
+            <div class="chart-box"><canvas id="combinedWeeklyAvgLineChart"></canvas></div>
+            <div class="subtle">Average of all visible audit scores rolled up by calendar week so you can see the bigger trend without daily noise.</div>
+          </div>
+          <div class="card">
+            <div class="chart-card-head">
               <h3>Department Weekly Score Comparison This Week</h3>
               <div class="chart-tools">
                 <div class="field" style="min-width:210px;">
@@ -1703,7 +1767,13 @@
             id: item.id || createId(),
             user: item.user || '',
             text: item.text || '',
-            createdAt: item.createdAt || new Date().toISOString()
+            createdAt: item.createdAt || new Date().toISOString(),
+            replies: Array.isArray(item.replies) ? item.replies.map(reply => ({
+              id: reply.id || createId(),
+              user: reply.user || '',
+              text: reply.text || '',
+              createdAt: reply.createdAt || new Date().toISOString()
+            })) : []
           }));
         }
 
@@ -1782,20 +1852,46 @@
       return Number(score).toFixed(0);
     }
 
+    function parseAppDate(dateValue) {
+      if (!dateValue) return null;
+      if (dateValue instanceof Date && !Number.isNaN(dateValue.getTime())) return dateValue;
+
+      if (typeof dateValue === 'string') {
+        const trimmed = dateValue.trim();
+        const dateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (dateOnlyMatch) {
+          return new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]));
+        }
+
+        const isoPrefixMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})[T\s].*$/);
+        if (isoPrefixMatch) {
+          return new Date(Number(isoPrefixMatch[1]), Number(isoPrefixMatch[2]) - 1, Number(isoPrefixMatch[3]));
+        }
+      }
+
+      const parsed = new Date(dateValue);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
     function formatDate(dateStr) {
       if (!dateStr) return '—';
-      const d = new Date(dateStr + 'T00:00:00');
-      if (Number.isNaN(d.getTime())) return dateStr;
+      const d = parseAppDate(dateStr);
+      if (!d) return String(dateStr);
       return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
     }
 
     function shortDate(dateStr) {
-      const d = new Date(dateStr + 'T00:00:00');
+      const d = parseAppDate(dateStr);
+      if (!d) return '—';
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     }
 
     function sortByDateAsc(list) {
-      return [...list].sort((a, b) => new Date(a.date) - new Date(b.date));
+      return [...list].sort((a, b) => {
+        const aDate = parseAppDate(a.date);
+        const bDate = parseAppDate(b.date);
+        return (aDate ? aDate.getTime() : 0) - (bDate ? bDate.getTime() : 0);
+      });
     }
 
     function average(nums) {
@@ -1867,9 +1963,12 @@
         const isoMatch = trimmed.match(/^\d{4}-\d{2}-\d{2}/);
         if (isoMatch) return isoMatch[0];
       }
-      const d = new Date(dateValue);
-      if (Number.isNaN(d.getTime())) return '';
-      return d.toISOString().slice(0, 10);
+      const d = parseAppDate(dateValue);
+      if (!d) return '';
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
 
     function getAuditYear(dateValue) {
@@ -2126,7 +2225,7 @@
       const currentYear = document.getElementById('historyYearFilter').value || 'all';
 
       audits.forEach(a=>{
-        const d = new Date(a.date);
+        const d = parseAppDate(a.date);
         weekSet.add(getWeekNumber(a.date));
         monthSet.add(d.getMonth()+1);
         yearSet.add(d.getFullYear());
@@ -2150,9 +2249,11 @@
 
     
     function getWeekNumber(dateStr){
-      const d=new Date(dateStr);
-      const onejan=new Date(d.getFullYear(),0,1);
-      return Math.ceil((((d - onejan) / 86400000) + onejan.getDay()+1)/7);
+      const d = parseAppDate(dateStr);
+      if (!d) return 0;
+      const normalized = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const onejan = new Date(normalized.getFullYear(),0,1);
+      return Math.ceil((((normalized - onejan) / 86400000) + onejan.getDay()+1)/7);
     }
 
     function renderHistory() {
@@ -2164,12 +2265,12 @@
       const monthVal = document.getElementById('historyMonthFilter').value;
 
       const filtered = [...audits]
-        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .sort((a, b) => (parseAppDate(b.date)?.getTime() || 0) - (parseAppDate(a.date)?.getTime() || 0))
         .filter(a => selectedDept === 'all' || a.department === selectedDept)
         .filter(a => !search || (a.notes || '').toLowerCase().includes(search))
         .filter(a => weekVal==='all' || getWeekNumber(a.date)==weekVal)
-        .filter(a => monthVal==='all' || new Date(a.date).getMonth()+1==monthVal)
-        .filter(a => document.getElementById('historyYearFilter').value==='all' || new Date(a.date).getFullYear()==document.getElementById('historyYearFilter').value);
+        .filter(a => monthVal==='all' || (parseAppDate(a.date)?.getMonth() + 1)==monthVal)
+        .filter(a => document.getElementById('historyYearFilter').value==='all' || (parseAppDate(a.date)?.getFullYear())==document.getElementById('historyYearFilter').value);
 
       if (!filtered.length) {
         tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">No audit entries found.</div></td></tr>`;
@@ -2296,6 +2397,8 @@
 
       drawBarChart('chartsBarChart', [...filteredStats].sort((a, b) => b.avg - a.avg), { valueKey: 'avg' });
       drawLineChart('trendLineChart', filteredStats);
+      drawCombinedAverageLineChart('combinedAvgLineChart', filteredAudits);
+      drawCombinedWeeklyAverageLineChart('combinedWeeklyAvgLineChart', filteredAudits);
       drawBarChart('chartsWeeklyBarChart', weeklyStats, { valueKey: 'avg' });
     }
 
@@ -2358,6 +2461,218 @@
       });
 
       ctx.textAlign = 'left';
+    }
+
+    function getCombinedAverageSeries(sourceAudits) {
+      const grouped = new Map();
+      sourceAudits.forEach(audit => {
+        const normalizedDate = normalizeAuditDate(audit.date);
+        if (!normalizedDate) return;
+        if (!grouped.has(normalizedDate)) grouped.set(normalizedDate, []);
+        grouped.get(normalizedDate).push(Number(audit.score));
+      });
+
+      return [...grouped.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, scores]) => ({
+          date,
+          avg: average(scores),
+          count: scores.length
+        }));
+    }
+
+    function getCombinedWeeklyAverageSeries(sourceAudits) {
+      const grouped = new Map();
+      sourceAudits.forEach(audit => {
+        const normalizedDate = normalizeAuditDate(audit.date);
+        if (!normalizedDate) return;
+        const year = getAuditYear(normalizedDate);
+        const week = getAuditWeek(normalizedDate);
+        if (!year || !week) return;
+        const key = `${year}-W${String(week).padStart(2, '0')}`;
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push(Number(audit.score));
+      });
+
+      return [...grouped.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([yearWeek, scores]) => ({
+          yearWeek,
+          label: formatYearWeekLabel(yearWeek),
+          avg: average(scores),
+          count: scores.length
+        }));
+    }
+
+    function drawCombinedAverageLineChart(canvasId, sourceAudits) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = setupCanvas(canvas);
+      if (!ctx) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      const series = getCombinedAverageSeries(sourceAudits);
+      if (!series.length) {
+        drawEmptyChart(ctx, width, height, 'No audit data available');
+        return;
+      }
+
+      const padding = { top: 48, right: 24, bottom: 58, left: 46 };
+      const chartW = width - padding.left - padding.right;
+      const chartH = height - padding.top - padding.bottom;
+      const maxVal = 100;
+
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.fillStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.font = '12px Inter, sans-serif';
+
+      for (let y = 0; y <= maxVal; y += 20) {
+        const py = padding.top + chartH - (y / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, py);
+        ctx.lineTo(width - padding.right, py);
+        ctx.stroke();
+        ctx.fillText(String(y), 10, py + 4);
+      }
+
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, height - padding.bottom);
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(x, height - 12);
+        ctx.rotate(-Math.PI / 6);
+        ctx.fillStyle = '#475569';
+        ctx.fillText(shortDate(point.date), 0, 0);
+        ctx.restore();
+      });
+
+      const startAvg = series[0].avg;
+      const endAvg = series[series.length - 1].avg;
+      const delta = endAvg - startAvg;
+      const trendColor = delta > 0.15 ? '#10b981' : delta < -0.15 ? '#ef4444' : '#f59e0b';
+
+      ctx.strokeStyle = trendColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        const y = padding.top + chartH - (point.avg / maxVal) * chartH;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        const y = padding.top + chartH - (point.avg / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.fillStyle = trendColor;
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      const trendLabel = delta > 0.15 ? 'Trending Up' : delta < -0.15 ? 'Trending Down' : 'Flat';
+      ctx.fillStyle = trendColor;
+      ctx.font = 'bold 13px Inter, sans-serif';
+      ctx.fillText(`${trendLabel} • Start ${startAvg.toFixed(1)} • End ${endAvg.toFixed(1)} • Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`, padding.left, 22);
+      ctx.fillStyle = '#334155';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.fillText(`Each point = combined average score for that audit date`, padding.left, 38);
+    }
+
+
+    function drawCombinedWeeklyAverageLineChart(canvasId, sourceAudits) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = setupCanvas(canvas);
+      if (!ctx) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      const series = getCombinedWeeklyAverageSeries(sourceAudits);
+      if (!series.length) {
+        drawEmptyChart(ctx, width, height, 'No audit data available');
+        return;
+      }
+
+      const padding = { top: 48, right: 24, bottom: 72, left: 46 };
+      const chartW = width - padding.left - padding.right;
+      const chartH = height - padding.top - padding.bottom;
+      const maxVal = 100;
+
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.fillStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.font = '12px Inter, sans-serif';
+
+      for (let y = 0; y <= maxVal; y += 20) {
+        const py = padding.top + chartH - (y / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, py);
+        ctx.lineTo(width - padding.right, py);
+        ctx.stroke();
+        ctx.fillText(String(y), 10, py + 4);
+      }
+
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, height - padding.bottom);
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(x, height - 12);
+        ctx.rotate(-Math.PI / 6);
+        ctx.fillStyle = '#475569';
+        ctx.fillText(point.label.replace('Current Week', 'This Week'), 0, 0);
+        ctx.restore();
+      });
+
+      const startAvg = series[0].avg;
+      const endAvg = series[series.length - 1].avg;
+      const delta = endAvg - startAvg;
+      const trendColor = delta > 0.15 ? '#10b981' : delta < -0.15 ? '#ef4444' : '#f59e0b';
+
+      ctx.strokeStyle = trendColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        const y = padding.top + chartH - (point.avg / maxVal) * chartH;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        const y = padding.top + chartH - (point.avg / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.fillStyle = trendColor;
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      const trendLabel = delta > 0.15 ? 'Trending Up' : delta < -0.15 ? 'Trending Down' : 'Flat';
+      ctx.fillStyle = trendColor;
+      ctx.font = 'bold 13px Inter, sans-serif';
+      ctx.fillText(`${trendLabel} • Start ${startAvg.toFixed(1)} • End ${endAvg.toFixed(1)} • Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`, padding.left, 22);
+      ctx.fillStyle = '#334155';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.fillText(`Each point = combined average score for that calendar week`, padding.left, 38);
     }
 
     function drawLineChart(canvasId, departmentStats) {
@@ -2972,7 +3287,19 @@
     function loadCommunicationEntries() {
       try {
         const raw = localStorage.getItem(COMM_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : [];
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.map(entry => ({
+          id: entry.id || createId(),
+          user: entry.user || '',
+          text: entry.text || '',
+          createdAt: entry.createdAt || new Date().toISOString(),
+          replies: Array.isArray(entry.replies) ? entry.replies.map(reply => ({
+            id: reply.id || createId(),
+            user: reply.user || '',
+            text: reply.text || '',
+            createdAt: reply.createdAt || new Date().toISOString()
+          })) : []
+        })) : [];
       } catch (err) {
         return [];
       }
@@ -3004,7 +3331,8 @@
         id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         user,
         text,
-        createdAt: now.toISOString()
+        createdAt: now.toISOString(),
+        replies: []
       });
 
       communicationEntries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -3016,6 +3344,41 @@
 
     function clearCommunicationDraft() {
       commText.value = '';
+    }
+
+    function addReplyToComment(commentId) {
+      const userSelect = document.querySelector(`[data-reply-user="${commentId}"]`);
+      const textInput = document.querySelector(`[data-reply-text="${commentId}"]`);
+      if (!userSelect || !textInput) return;
+
+      const user = userSelect.value;
+      const text = textInput.value.trim();
+
+      if (!user) {
+        alert('Select a user for the reply first.');
+        userSelect.focus();
+        return;
+      }
+
+      if (!text) {
+        alert('Enter a reply before saving.');
+        textInput.focus();
+        return;
+      }
+
+      const entry = communicationEntries.find(item => item.id === commentId);
+      if (!entry) return;
+      if (!Array.isArray(entry.replies)) entry.replies = [];
+
+      entry.replies.push({
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        user,
+        text,
+        createdAt: new Date().toISOString()
+      });
+
+      saveCommunicationEntries();
+      renderCommunicationEntries();
     }
 
     function populateCommunicationFilters() {
@@ -3030,8 +3393,9 @@
       const currentYear = commYearFilter.value || 'all';
 
       communicationEntries.forEach(entry => {
-        const d = new Date(entry.createdAt);
-        const dateOnly = d.toISOString().slice(0, 10);
+        const d = parseAppDate(entry.createdAt);
+        if (!d) return;
+        const dateOnly = normalizeAuditDate(d);
         daySet.add(dateOnly);
         weekSet.add(getWeekNumber(dateOnly));
         monthSet.add(d.getMonth() + 1);
@@ -3040,7 +3404,8 @@
 
       commDayFilter.innerHTML = '<option value="all">All Days</option>' +
         [...daySet].sort((a, b) => new Date(b) - new Date(a)).map(day => {
-          const label = new Date(day + 'T00:00:00').toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+          const labelDate = parseAppDate(day);
+          const label = labelDate ? labelDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : day;
           return `<option value="${day}">${label}</option>`;
         }).join('');
 
@@ -3081,10 +3446,11 @@
       const yearVal = commYearFilter.value;
 
       const filtered = [...communicationEntries]
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .sort((a, b) => (parseAppDate(b.createdAt)?.getTime() || 0) - (parseAppDate(a.createdAt)?.getTime() || 0))
         .filter(entry => {
-          const d = new Date(entry.createdAt);
-          const dateOnly = d.toISOString().slice(0, 10);
+          const d = parseAppDate(entry.createdAt);
+          if (!d) return false;
+          const dateOnly = normalizeAuditDate(d);
           return (dayVal === 'all' || dateOnly === dayVal) &&
                  (weekVal === 'all' || getWeekNumber(dateOnly) == weekVal) &&
                  (monthVal === 'all' || (d.getMonth() + 1) == monthVal) &&
@@ -3097,18 +3463,60 @@
       }
 
       communicationList.innerHTML = filtered.map(entry => {
-        const d = new Date(entry.createdAt);
-        const dateLabel = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-        const timeLabel = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        const d = parseAppDate(entry.createdAt);
+        const dateLabel = d ? d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+        const timeLabel = d ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+        const replies = Array.isArray(entry.replies) ? [...entry.replies].sort((a, b) => (parseAppDate(a.createdAt)?.getTime() || 0) - (parseAppDate(b.createdAt)?.getTime() || 0)) : [];
+
         return `
           <div class="comment-card">
             <div class="comment-head">
               <div class="comment-user">${escapeHtml(entry.user)}</div>
-              <div class="comment-meta">${dateLabel} • ${timeLabel}</div>
+              <div class="comment-meta">${dateLabel}${timeLabel ? ` • ${timeLabel}` : ''}</div>
             </div>
             <div class="comment-text">${escapeHtml(entry.text)}</div>
             <div class="comment-actions">
               <button class="comment-delete-btn" type="button" data-comment-id="${entry.id}">Delete</button>
+            </div>
+
+            <div class="reply-thread">
+              <div class="comment-meta" style="font-weight:700;">Replies</div>
+              ${replies.length ? replies.map(reply => {
+                const replyDate = parseAppDate(reply.createdAt);
+                const replyDateLabel = replyDate ? replyDate.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+                const replyTimeLabel = replyDate ? replyDate.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+                return `
+                  <div class="reply-card">
+                    <div class="comment-head" style="margin-bottom:6px;">
+                      <div class="comment-user">${escapeHtml(reply.user)}</div>
+                      <div class="comment-meta">${replyDateLabel}${replyTimeLabel ? ` • ${replyTimeLabel}` : ''}</div>
+                    </div>
+                    <div class="comment-text">${escapeHtml(reply.text)}</div>
+                  </div>
+                `;
+              }).join('') : '<div class="reply-empty">No replies yet.</div>'}
+
+              <div class="reply-form">
+                <div class="reply-form-grid">
+                  <div class="field">
+                    <label>User</label>
+                    <select data-reply-user="${entry.id}">
+                      <option value="">Select user</option>
+                      <option value="James">James</option>
+                      <option value="Pablo">Pablo</option>
+                      <option value="Ops">Ops</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Reply</label>
+                    <input class="reply-input" type="text" data-reply-text="${entry.id}" placeholder="Enter reply..." />
+                  </div>
+                  <div class="field">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-secondary" type="button" data-reply-add="${entry.id}">Reply</button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         `;
@@ -3116,6 +3524,10 @@
 
       communicationList.querySelectorAll('.comment-delete-btn').forEach(btn => {
         btn.addEventListener('click', () => deleteComment(btn.dataset.commentId));
+      });
+
+      communicationList.querySelectorAll('[data-reply-add]').forEach(btn => {
+        btn.addEventListener('click', () => addReplyToComment(btn.dataset.replyAdd));
       });
     }
 
@@ -3272,6 +3684,11 @@
         const stats = getDepartmentStats();
         const filteredStats = stats.filter(s => visibleDepartments.has(s.department) && s.count > 0);
         drawLineChartOnCanvas(chartModalCanvas, filteredStats);
+        return;
+      }
+
+      if (expandedChartType === 'combinedAvgLineChart') {
+        drawCombinedAverageLineChartOnCanvas(chartModalCanvas, getFilteredChartAudits());
       }
     }
 
@@ -3332,6 +3749,90 @@
       });
 
       ctx.textAlign = 'left';
+    }
+
+    function drawCombinedAverageLineChartOnCanvas(canvas, sourceAudits) {
+      const ctx = setupCanvas(canvas);
+      if (!ctx) return;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      ctx.clearRect(0, 0, width, height);
+
+      const series = getCombinedAverageSeries(sourceAudits);
+      if (!series.length) {
+        drawEmptyChart(ctx, width, height, 'No audit data available');
+        return;
+      }
+
+      const padding = { top: 56, right: 24, bottom: 62, left: 52 };
+      const chartW = width - padding.left - padding.right;
+      const chartH = height - padding.top - padding.bottom;
+      const maxVal = 100;
+
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.fillStyle = '#64748b';
+      ctx.lineWidth = 1;
+      ctx.font = '12px Inter, sans-serif';
+
+      for (let y = 0; y <= maxVal; y += 20) {
+        const py = padding.top + chartH - (y / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, py);
+        ctx.lineTo(width - padding.right, py);
+        ctx.stroke();
+        ctx.fillText(String(y), 10, py + 4);
+      }
+
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        ctx.beginPath();
+        ctx.moveTo(x, padding.top);
+        ctx.lineTo(x, height - padding.bottom);
+        ctx.strokeStyle = '#f1f5f9';
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(x, height - 12);
+        ctx.rotate(-Math.PI / 6);
+        ctx.fillStyle = '#475569';
+        ctx.fillText(shortDate(point.date), 0, 0);
+        ctx.restore();
+      });
+
+      const startAvg = series[0].avg;
+      const endAvg = series[series.length - 1].avg;
+      const delta = endAvg - startAvg;
+      const trendColor = delta > 0.15 ? '#10b981' : delta < -0.15 ? '#ef4444' : '#f59e0b';
+
+      ctx.strokeStyle = trendColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        const y = padding.top + chartH - (point.avg / maxVal) * chartH;
+        if (index === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      series.forEach((point, index) => {
+        const x = padding.left + (series.length === 1 ? chartW / 2 : index * (chartW / (series.length - 1)));
+        const y = padding.top + chartH - (point.avg / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.fillStyle = trendColor;
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      const trendLabel = delta > 0.15 ? 'Trending Up' : delta < -0.15 ? 'Trending Down' : 'Flat';
+      ctx.fillStyle = trendColor;
+      ctx.font = 'bold 14px Inter, sans-serif';
+      ctx.fillText(`${trendLabel} • Start ${startAvg.toFixed(1)} • End ${endAvg.toFixed(1)} • Δ ${delta >= 0 ? '+' : ''}${delta.toFixed(1)}`, padding.left, 24);
+      ctx.fillStyle = '#334155';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.fillText(`Each point = combined average score for that audit date`, padding.left, 42);
     }
 
     function drawLineChartOnCanvas(canvas, departmentStats) {
