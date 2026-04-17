@@ -389,6 +389,32 @@
       letter-spacing: 0.04em;
     }
 
+    .sortable-header {
+      user-select: none;
+      position: relative;
+      padding-right: 28px;
+    }
+
+    .sortable-header::after {
+      content: "↕";
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      color: var(--slate-400);
+    }
+
+    .sortable-header.sort-asc::after {
+      content: "▲";
+      color: var(--navy-950);
+    }
+
+    .sortable-header.sort-desc::after {
+      content: "▼";
+      color: var(--navy-950);
+    }
+
     tr:hover td { background: #fcfdff; }
 
     .toolbar {
@@ -1360,10 +1386,10 @@
             <table>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Department</th>
-                  <th>Score</th>
-                  <th>Notes</th>
+                  <th id="historySortDate" data-sort-column="date" class="sortable-header" style="cursor:pointer;">Date</th>
+                  <th id="historySortDepartment" data-sort-column="department" class="sortable-header" style="cursor:pointer;">Department</th>
+                  <th id="historySortScore" data-sort-column="score" class="sortable-header" style="cursor:pointer;">Score</th>
+                  <th id="historySortNotes" data-sort-column="notes" class="sortable-header" style="cursor:pointer;">Notes</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -1605,6 +1631,10 @@
     let expandedChartTitle = '';
     let selectedDashboardWeek = 'current';
     let selectedChartsWeek = 'current';
+    let historySortState = {
+      column: 'date',
+      direction: 'desc'
+    };
 
     document.getElementById('addRowBtn').addEventListener('click', () => addAuditRow());
     document.getElementById('saveAuditsBtn').addEventListener('click', saveAuditRows);
@@ -1649,6 +1679,9 @@
     document.getElementById('historyWeekFilter').addEventListener('change', renderHistory);
     document.getElementById('historyMonthFilter').addEventListener('change', renderHistory);
     document.getElementById('historyYearFilter').addEventListener('change', renderHistory);
+    document.querySelectorAll('.sortable-header').forEach(header => {
+      header.addEventListener('click', () => applyHistorySort(header.dataset.sortColumn));
+    });
     commDayFilter.addEventListener('change', renderCommunicationEntries);
     commWeekFilter.addEventListener('change', renderCommunicationEntries);
     commMonthFilter.addEventListener('change', renderCommunicationEntries);
@@ -2253,6 +2286,63 @@
       return Math.ceil((((normalized - onejan) / 86400000) + onejan.getDay()+1)/7);
     }
 
+
+    function applyHistorySort(column) {
+      if (!column) return;
+      if (historySortState.column === column) {
+        historySortState.direction = historySortState.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        historySortState.column = column;
+        historySortState.direction = 'asc';
+      }
+      renderHistory();
+    }
+
+    function sortHistoryAudits(list) {
+      const dir = historySortState.direction === 'asc' ? 1 : -1;
+      const column = historySortState.column;
+
+      return [...list].sort((a, b) => {
+        let valA;
+        let valB;
+
+        switch (column) {
+          case 'date':
+            valA = normalizeAuditDate(a.date) || '';
+            valB = normalizeAuditDate(b.date) || '';
+            break;
+          case 'department':
+            valA = String(a.department || '').toLowerCase();
+            valB = String(b.department || '').toLowerCase();
+            break;
+          case 'score':
+            valA = Number(a.score || 0);
+            valB = Number(b.score || 0);
+            break;
+          case 'notes':
+            valA = String(a.notes || '').toLowerCase();
+            valB = String(b.notes || '').toLowerCase();
+            break;
+          default:
+            valA = '';
+            valB = '';
+        }
+
+        if (valA < valB) return -1 * dir;
+        if (valA > valB) return 1 * dir;
+        return 0;
+      });
+    }
+
+    function updateHistorySortIndicators() {
+      document.querySelectorAll('.sortable-header').forEach(header => {
+        header.classList.remove('sort-asc', 'sort-desc');
+        if (header.dataset.sortColumn === historySortState.column) {
+          header.classList.add(historySortState.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+      });
+    }
+
     function renderHistory() {
       const tbody = document.getElementById('historyTableBody');
       const selectedDept = historyDepartmentFilter.value || 'all';
@@ -2261,13 +2351,15 @@
       const weekVal = document.getElementById('historyWeekFilter').value;
       const monthVal = document.getElementById('historyMonthFilter').value;
 
-      const filtered = [...audits]
-        .sort((a, b) => (parseAppDate(b.date)?.getTime() || 0) - (parseAppDate(a.date)?.getTime() || 0))
+      let filtered = [...audits]
         .filter(a => selectedDept === 'all' || a.department === selectedDept)
         .filter(a => !search || (a.notes || '').toLowerCase().includes(search))
         .filter(a => weekVal==='all' || getWeekNumber(a.date)==weekVal)
         .filter(a => monthVal==='all' || (parseAppDate(a.date)?.getMonth() + 1)==monthVal)
         .filter(a => document.getElementById('historyYearFilter').value==='all' || (parseAppDate(a.date)?.getFullYear())==document.getElementById('historyYearFilter').value);
+
+      filtered = sortHistoryAudits(filtered);
+      updateHistorySortIndicators();
 
       if (!filtered.length) {
         tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">No audit entries found.</div></td></tr>`;
