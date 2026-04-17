@@ -1870,9 +1870,12 @@
       pushCloudData();
     }
 
-    function createId() {
-      return `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    }
+    ffunction createId() {
+  if (window.crypto && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Date.now().toString() + '_' + Math.random().toString(36).substring(2, 10);
+}
 
     function getScoreColor(score) {
       if (score >= 90) return '#10b981';
